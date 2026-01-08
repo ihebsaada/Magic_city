@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id              Int                 @id @default(autoincrement())
+  handle          String              @unique
+  title           String
+  descriptionHtml String?
+  vendor          String?
+  productType     String?
+  tags            String[]            @default([])
+  status          String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  option1Name     String?
+  option2Name     String?
+  option3Name     String?
+  orderItems      OrderItem[]
+  collections     ProductCollection[]
+  images          ProductImage[]
+  variants        Variant[]
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  src       String
+  alt       String?
+  position  Int?
+  productId Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Variant {
+  id                Int      @id @default(autoincrement())
+  sku               String?  @unique
+  title             String?
+  price             Decimal? @db.Decimal(10, 2)
+  compareAtPrice    Decimal? @db.Decimal(10, 2)
+  inventoryQuantity Int?     @default(999)
+  option1           String?
+  option2           String?
+  option3           String?
+  productId         Int
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Collection {
+  id          Int                 @id @default(autoincrement())
+  handle      String              @unique
+  title       String
+  description String?
+  products    ProductCollection[]
+}
+
+model ProductCollection {
+  productId    Int
+  collectionId Int
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([productId, collectionId])
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     Int           @default(autoincrement())
+  customerName    String
+  customerEmail   String
+  total           Decimal       @db.Decimal(10, 2)
+
+  originalTotal   Decimal?      @db.Decimal(10, 2)  
+  discountCode    String?                               
+  discountAmount  Decimal?      @db.Decimal(10, 2)  
+
+  status          OrderStatus   @default(PENDING)
+  paymentStatus   PaymentStatus @default(PENDING)
+  sumupCheckoutId String?
+  sumupPaymentId  String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  items           OrderItem[]
+  stripeSessionId String?
+}
+
+model OrderItem {
+  id            Int      @id @default(autoincrement())
+  orderId       String
+  productId     Int?
+  productTitle  String
+  productHandle String
+  mainImage     String?
+  quantity      Int
+  unitPrice     Decimal  @db.Decimal(10, 2)
+  selectedSize  String?
+  selectedColor String?
+  variantSku    String?
+  order         Order    @relation(fields: [orderId], references: [id])
+  product       Product? @relation(fields: [productId], references: [id])
+}
+
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
