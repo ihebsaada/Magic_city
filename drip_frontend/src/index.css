@@ -1,0 +1,206 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Luxury neutral palette */
+    --background: 0 0% 98%;
+    --foreground: 0 0% 9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+
+    /* Deep black primary */
+    --primary: 0 0% 9%;
+    --primary-foreground: 40 20% 96%;
+
+    /* Warm off-white secondary */
+    --secondary: 40 20% 96%;
+    --secondary-foreground: 0 0% 9%;
+
+    /* Soft grey muted */
+    --muted: 0 0% 94%;
+    --muted-foreground: 0 0% 40%;
+
+    /* Champagne gold accent */
+    --accent: 42 78% 65%;
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 40 20% 96%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 42 78% 65%;
+
+    --radius: 0.25rem;
+
+    /* Luxury gradients */
+    --gradient-luxury: linear-gradient(
+      135deg,
+      hsl(0 0% 9%) 0%,
+      hsl(0 0% 20%) 100%
+    );
+    --gradient-gold: linear-gradient(
+      135deg,
+      hsl(42 78% 65%) 0%,
+      hsl(38 68% 55%) 100%
+    );
+    --gradient-subtle: linear-gradient(
+      180deg,
+      hsl(0 0% 98%) 0%,
+      hsl(0 0% 96%) 100%
+    );
+
+    /* Shadows */
+    --shadow-luxury: 0 20px 60px -15px hsl(0 0% 9% / 0.3);
+    --shadow-card: 0 4px 20px -2px hsl(0 0% 9% / 0.1);
+    --shadow-sm: 0 2px 8px -1px hsl(0 0% 9% / 0.08);
+
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-luxury: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 0 0% 9%;
+    --foreground: 40 20% 96%;
+
+    --card: 0 0% 12%;
+    --card-foreground: 40 20% 96%;
+
+    --popover: 0 0% 12%;
+    --popover-foreground: 40 20% 96%;
+
+    --primary: 40 20% 96%;
+    --primary-foreground: 0 0% 9%;
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 40 20% 96%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 42 78% 65%;
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 40 20% 96%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 42 78% 65%;
+
+    --shadow-luxury: 0 20px 60px -15px hsl(0 0% 0% / 0.5);
+    --shadow-card: 0 4px 20px -2px hsl(0 0% 0% / 0.3);
+    --shadow-sm: 0 2px 8px -1px hsl(0 0% 0% / 0.2);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "liga" 1, "calt" 1;
+  }
+
+  /* Luxury typography */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-serif tracking-tight;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+}
+
+/* Marquee spéciale pour la top bar */
+@keyframes topbar-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(50%);
+  }
+}
+
+.topbar-marquee {
+  animation: topbar-marquee 20s linear infinite;
+  width: max-content;
+  white-space: nowrap;
+}
+.topbar-gap {
+  margin-left: 100vw; /* espace égal à la largeur d’écran */
+}
+@keyframes marquee-horizontal {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-horizontal {
+  animation: marquee-horizontal 10s linear infinite;
+}
+
+@keyframes vertical-marquee-up {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+
+@keyframes vertical-marquee-down {
+  0% {
+    transform: translateY(-50%);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.vertical-marquee-up {
+  animation: vertical-marquee-up 35s linear infinite;
+}
+
+.vertical-marquee-down {
+  animation: vertical-marquee-down 35s linear infinite;
+}
