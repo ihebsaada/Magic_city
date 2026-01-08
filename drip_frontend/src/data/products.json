@@ -1,0 +1,407 @@
+[
+  {
+    "id": "1",
+    "handle": "loro-piana-open-walk-suede-navy",
+    "title": "Open Walk Suede Sneakers",
+    "description": "Sneakers basse in morbida pelle scamosciata con logo discreto. Suola in gomma ultraleggera per il massimo comfort. Realizzate a mano in Italia con materiali di prima qualità.",
+    "brand": "Loro Piana",
+    "price": 695,
+    "mainImage": "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+      "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44", "45"],
+    "colors": ["Navy", "Grigio"],
+    "tags": ["bestseller", "popular", "luxury"],
+    "collection": "loro-piana",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 15
+  },
+  {
+    "id": "2",
+    "handle": "louis-vuitton-lv-trainer-white",
+    "title": "LV Trainer Sneakers Bianche",
+    "description": "Sneakers iconiche con dettagli LV monogram. Suola leggera e ammortizzata. Design contemporaneo ispirato alle sneakers da basket vintage.",
+    "brand": "Louis Vuitton",
+    "price": 1150,
+    "mainImage": "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44"],
+    "colors": ["Bianco", "Nero"],
+    "tags": ["bestseller", "new-arrival"],
+    "collection": "louis-vuitton",
+    "isNew": true,
+    "isOnSale": false,
+    "stock": 8
+  },
+  {
+    "id": "3",
+    "handle": "dior-b23-oblique-high-top",
+    "title": "B23 Oblique High-Top",
+    "description": "Sneakers alte in tela Dior Oblique con suola trasparente. Design audace e moderno con logo Dior sulla linguetta.",
+    "brand": "Dior",
+    "price": 1200,
+    "compareAtPrice": 1350,
+    "mainImage": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+      "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44"],
+    "colors": ["Beige", "Nero"],
+    "tags": ["sale", "popular"],
+    "collection": "dior",
+    "isNew": false,
+    "isOnSale": true,
+    "stock": 12
+  },
+  {
+    "id": "4",
+    "handle": "balenciaga-triple-s-black",
+    "title": "Triple S Sneakers Nere",
+    "description": "Le iconiche sneakers chunky con suola tripla stratificata. Design oversize con tomaia multimateriale. Statement audace della moda contemporanea.",
+    "brand": "Balenciaga",
+    "price": 895,
+    "mainImage": "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44", "45"],
+    "colors": ["Nero", "Bianco", "Rosso"],
+    "tags": ["bestseller", "popular"],
+    "collection": "balenciaga",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 20
+  },
+  {
+    "id": "5",
+    "handle": "hogan-interactive-grey-suede",
+    "title": "Interactive Sneakers Scamosciata",
+    "description": "Sneakers sportive in pelle scamosciata con H laterale iconico. Suola con tasselli in gomma per massima trazione. Comfort italiano senza compromessi.",
+    "brand": "Hogan",
+    "price": 385,
+    "mainImage": "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+      "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44", "45"],
+    "colors": ["Grigio", "Blu", "Marrone"],
+    "tags": ["bestseller"],
+    "collection": "hogan",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 25
+  },
+  {
+    "id": "6",
+    "handle": "prada-cloudbust-thunder-white",
+    "title": "Cloudbust Thunder Bianche",
+    "description": "Sneakers tecniche con design futuristico e suola oversize. Logo triangolare Prada applicato. Comfort e stile all'avanguardia.",
+    "brand": "Prada",
+    "price": 790,
+    "compareAtPrice": 890,
+    "mainImage": "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44"],
+    "colors": ["Bianco", "Nero"],
+    "tags": ["sale", "new-arrival"],
+    "collection": "prada",
+    "isNew": true,
+    "isOnSale": true,
+    "stock": 10
+  },
+  {
+    "id": "7",
+    "handle": "gucci-ace-embroidered-bee",
+    "title": "Ace Sneakers con Ape Ricamata",
+    "description": "Sneakers basse in pelle con ricamo ape dorata. Web stripe verde-rosso iconico. Craftsmanship italiano al massimo livello.",
+    "brand": "Gucci",
+    "price": 690,
+    "mainImage": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+      "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44", "45"],
+    "colors": ["Bianco", "Nero"],
+    "tags": ["bestseller", "popular"],
+    "collection": "gucci",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 18
+  },
+  {
+    "id": "8",
+    "handle": "bottega-veneta-flash-sneakers",
+    "title": "Flash Sneakers in Pelle",
+    "description": "Sneakers con design minimalista e artigianato impeccabile. Silhouette elegante con dettagli signature. Lusso discreto per il quotidiano.",
+    "brand": "Bottega Veneta",
+    "price": 850,
+    "mainImage": "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44"],
+    "colors": ["Nero", "Bianco", "Grigio"],
+    "tags": ["new-arrival", "popular"],
+    "collection": "bottega-veneta",
+    "isNew": true,
+    "isOnSale": false,
+    "stock": 14
+  },
+  {
+    "id": "9",
+    "handle": "saint-laurent-court-classic-white",
+    "title": "Court Classic SL/06 Bianche",
+    "description": "Sneakers da tennis in pelle liscia con logo YSL dorato. Linee pulite e minimaliste. Eleganza parigina incontra lo streetwear.",
+    "brand": "Saint Laurent",
+    "price": 595,
+    "mainImage": "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
+      "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44", "45"],
+    "colors": ["Bianco", "Nero"],
+    "tags": ["bestseller"],
+    "collection": "saint-laurent",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 22
+  },
+  {
+    "id": "10",
+    "handle": "common-projects-achilles-low-white",
+    "title": "Achilles Low Premium",
+    "description": "Sneakers minimaliste in pelle italiana di prima qualità. Numeri seriali dorati stampati. Il perfetto equilibrio tra semplicità e lusso.",
+    "brand": "Common Projects",
+    "price": 425,
+    "compareAtPrice": 495,
+    "mainImage": "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=800&q=80",
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44"],
+    "colors": ["Bianco", "Nero", "Grigio"],
+    "tags": ["sale", "popular"],
+    "collection": "common-projects",
+    "isNew": false,
+    "isOnSale": true,
+    "stock": 30
+  },
+  {
+    "id": "11",
+    "handle": "golden-goose-superstar-distressed",
+    "title": "Superstar Sneakers Vintage",
+    "description": "Sneakers con effetto vissuto e stella laterale. Artigianato italiano con finish unico per ogni paio. Lo stile effortless italiano.",
+    "brand": "Golden Goose",
+    "price": 495,
+    "mainImage": "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44", "45"],
+    "colors": ["Bianco", "Nero", "Beige"],
+    "tags": ["bestseller", "popular"],
+    "collection": "golden-goose",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 16
+  },
+  {
+    "id": "12",
+    "handle": "off-white-out-of-office-black",
+    "title": "Out of Office Sneakers Nere",
+    "description": "Sneakers con freccia iconico e zip signature. Design street couture con dettagli industrial. L'eredità di Virgil Abloh.",
+    "brand": "Off-White",
+    "price": 565,
+    "mainImage": "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44", "45"],
+    "colors": ["Nero", "Bianco"],
+    "tags": ["new-arrival", "popular"],
+    "collection": "off-white",
+    "isNew": true,
+    "isOnSale": false,
+    "stock": 11
+  },
+  {
+    "id": "13",
+    "handle": "givenchy-giv-1-leather-black",
+    "title": "GIV 1 Sneakers in Pelle",
+    "description": "Sneakers basse con logo 4G embossato. Tomaia in pelle nera di vitello. Eleganza urbana con tocco ribelle.",
+    "brand": "Givenchy",
+    "price": 650,
+    "compareAtPrice": 750,
+    "mainImage": "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44"],
+    "colors": ["Nero", "Bianco"],
+    "tags": ["sale"],
+    "collection": "givenchy",
+    "isNew": false,
+    "isOnSale": true,
+    "stock": 9
+  },
+  {
+    "id": "14",
+    "handle": "valentino-open-white-gold",
+    "title": "Valentino Open Bianche Oro",
+    "description": "Sneakers basse in pelle con logo VLTN dorato. Suola in gomma con texture. Semplicità italiana con dettagli preziosi.",
+    "brand": "Valentino",
+    "price": 695,
+    "mainImage": "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80",
+      "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44"],
+    "colors": ["Bianco", "Nero"],
+    "tags": ["bestseller"],
+    "collection": "valentino",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 17
+  },
+  {
+    "id": "15",
+    "handle": "fendi-flow-sneakers-white",
+    "title": "Flow Sneakers Bianche",
+    "description": "Sneakers running-inspired con logo FF all-over. Mesh tecnico e pelle. Design contemporaneo per la vita urbana.",
+    "brand": "Fendi",
+    "price": 750,
+    "mainImage": "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80",
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44", "45"],
+    "colors": ["Bianco", "Nero", "Beige"],
+    "tags": ["new-arrival"],
+    "collection": "fendi",
+    "isNew": true,
+    "isOnSale": false,
+    "stock": 13
+  },
+  {
+    "id": "16",
+    "handle": "moncler-emilien-high-top-navy",
+    "title": "Emilien High-Top Navy",
+    "description": "Sneakers alte con patch logo Moncler. Tomaia tecnica imbottita. Performance e stile alpine.",
+    "brand": "Moncler",
+    "price": 595,
+    "mainImage": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+      "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44"],
+    "colors": ["Navy", "Nero", "Grigio"],
+    "tags": ["popular"],
+    "collection": "moncler",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 19
+  },
+  {
+    "id": "17",
+    "handle": "stone-island-shadow-project-mid",
+    "title": "Shadow Project Mid Sneakers",
+    "description": "Sneakers tecniche con trattamento Dyneema. Design avant-garde con dettagli riflettenti. Innovazione tessile italiana.",
+    "brand": "Stone Island",
+    "price": 485,
+    "compareAtPrice": 570,
+    "mainImage": "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+      "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44", "45"],
+    "colors": ["Nero", "Grigio", "Kaki"],
+    "tags": ["sale", "popular"],
+    "collection": "stone-island",
+    "isNew": false,
+    "isOnSale": true,
+    "stock": 14
+  },
+  {
+    "id": "18",
+    "handle": "alexander-mcqueen-oversized-black",
+    "title": "Oversized Sneakers Nere",
+    "description": "Sneakers con suola oversize e tab contrast. Pelle liscia di vitello. Il modello cult che ha ridefinito le sneakers luxury.",
+    "brand": "Alexander McQueen",
+    "price": 590,
+    "mainImage": "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?w=800&q=80",
+      "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&q=80"
+    ],
+    "sizes": ["39", "40", "41", "42", "43", "44", "45"],
+    "colors": ["Nero", "Bianco"],
+    "tags": ["bestseller", "popular"],
+    "collection": "alexander-mcqueen",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 24
+  },
+  {
+    "id": "19",
+    "handle": "tod-s-leather-driving-sneakers",
+    "title": "Sneakers da Guida in Pelle",
+    "description": "Sneakers ibride con gommini signature Tod's. Comfort artigianale italiano. Per chi non scende mai a compromessi.",
+    "brand": "Tod's",
+    "price": 465,
+    "mainImage": "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=800&q=80",
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44", "45"],
+    "colors": ["Marrone", "Nero", "Blu"],
+    "tags": ["bestseller"],
+    "collection": "tods",
+    "isNew": false,
+    "isOnSale": false,
+    "stock": 21
+  },
+  {
+    "id": "20",
+    "handle": "brunello-cucinelli-high-top-grey",
+    "title": "High-Top Premium Grigie",
+    "description": "Sneakers alte in pelle nubuck con dettagli monili. Artigianalità senza tempo. Il lusso quiet del Made in Italy.",
+    "brand": "Brunello Cucinelli",
+    "price": 895,
+    "mainImage": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80",
+      "https://images.unsplash.com/photo-1551107696-a4b0c5a0d9a2?w=800&q=80"
+    ],
+    "sizes": ["40", "41", "42", "43", "44"],
+    "colors": ["Grigio", "Beige", "Marrone"],
+    "tags": ["new-arrival", "luxury"],
+    "collection": "brunello-cucinelli",
+    "isNew": true,
+    "isOnSale": false,
+    "stock": 7
+  }
+]
