@@ -1,7 +1,7 @@
 // src/services/productService.ts
 import { Product, CollectionSummary } from "@/types/product";
 
-const API_URL = "http://localhost:4000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
 
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
