@@ -2,10 +2,15 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import Navigation from "@/components/Navigation";
 import {
   getCart,
@@ -16,6 +21,10 @@ import {
   getSessionId,
   CartItem,
 } from "@/lib/cart";
+
+// ✅ même logique que CheckoutLanding
+const API_URL =
+  import.meta.env.VITE_PRIMARY_API_URL ?? "http://localhost:4000/api";
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -32,7 +41,7 @@ const Cart = () => {
   };
 
   const handleQuantityChange = (itemId: string, delta: number) => {
-    const item = cart.find(i => i.id === itemId);
+    const item = cart.find((i) => i.id === itemId);
     if (item) {
       updateQuantity(itemId, item.quantity + delta);
       refreshCart();
@@ -45,9 +54,9 @@ const Cart = () => {
   };
 
   const formatPrice = (cents: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(cents / 100);
   };
 
@@ -64,31 +73,45 @@ const Cart = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('checkout', {
-        body: {
+      const response = await fetch(`${API_URL}/seamless/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           sessionId: getSessionId(),
           encryptedCart: getEncryptedCart(),
-          items: cart.map(item => ({
+          items: cart.map((item) => ({
             genericName: item.genericName,
             price: item.price,
             quantity: item.quantity,
           })),
           total: getCartTotal(),
-        },
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`Backend error (${response.status})`);
+      }
 
-      if (data?.url) {
+      // Deux possibilités :
+      // 1) ton backend renvoie directement { url } (Stripe) -> on redirige
+      // 2) ton backend renvoie { orderId } -> on redirige vers /checkout-landing?orderId=...
+      const data = await response.json();
+
+      if (data.url) {
+        // Cas 1 : backend renvoie directement l’URL Stripe
         window.location.href = data.url;
+      } else if (data.orderId) {
+        // Cas 2 : backend crée une order et on passe par CheckoutLanding
+        navigate(`/checkout-landing?orderId=${data.orderId}`);
       } else {
-        throw new Error('No checkout URL received');
+        throw new Error("No checkout URL or orderId received from backend");
       }
     } catch (error: any) {
-      console.error('Checkout error:', error);
+      console.error("Checkout error:", error);
       toast({
         title: "Checkout failed",
-        description: error.message || "Unable to process checkout. Please try again.",
+        description:
+          error.message || "Unable to process checkout. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -108,7 +131,7 @@ const Cart = () => {
             <CardHeader>
               <CardTitle className="text-2xl">Your Cart</CardTitle>
             </CardHeader>
-            
+
             <CardContent>
               {cart.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
@@ -117,8 +140,8 @@ const Cart = () => {
               ) : (
                 <div className="space-y-4">
                   {cart.map((item, index) => (
-                    <div 
-                      key={item.id} 
+                    <div
+                      key={item.id}
                       className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 animate-slide-up"
                       style={{ animationDelay: `${index * 0.1}s` }}
                     >
@@ -180,8 +203,8 @@ const Cart = () => {
                     {formatPrice(total)}
                   </span>
                 </div>
-                
-                <Button 
+
+                <Button
                   onClick={handleCheckout}
                   disabled={loading}
                   className="w-full bg-accent text-accent-foreground hover:bg-accent/90 py-6 text-lg font-medium"
@@ -192,7 +215,7 @@ const Cart = () => {
                       Processing...
                     </>
                   ) : (
-                    'Checkout'
+                    "Checkout"
                   )}
                 </Button>
 
