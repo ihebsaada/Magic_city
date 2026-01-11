@@ -51,7 +51,7 @@ export const Header = () => {
           <Link to="/" className="flex items-center space-x-2">
             <span>
               <img
-                src="//magiccitydrip.com/cdn/shop/files/2_98ef3367-cacc-470a-8bfb-d612b9688d07.png?v=1760888443&width=165"
+                src="https://uc9d1w-mj.myshopify.com/cdn/shop/files/2_98ef3367-cacc-470a-8bfb-d612b9688d07.png?v=1760888443&width=165"
                 alt="Magic City Drip logo"
                 className="h-10 w-auto"
               />
