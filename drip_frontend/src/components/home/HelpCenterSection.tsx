@@ -6,6 +6,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
+import { Link } from "react-router-dom";
 
 export const HelpCenterSection = () => {
   return (
@@ -31,8 +32,11 @@ export const HelpCenterSection = () => {
             Tempo medio di risposta: 1 ora.
           </p>
 
-          <Button className="mt-4 h-11 rounded-full px-8 text-sm font-semibold">
-            Contattaci
+          <Button
+            asChild
+            className="mt-4 h-11 rounded-full px-8 text-sm font-semibold"
+          >
+            <Link to="/contact">Contattaci</Link>
           </Button>
         </div>
 
