@@ -2,7 +2,12 @@ import type { Config } from "tailwindcss";
 
 export default {
   darkMode: ["class"],
-  content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
+  content: [
+    "./pages/**/*.{ts,tsx}",
+    "./components/**/*.{ts,tsx}",
+    "./app/**/*.{ts,tsx}",
+    "./src/**/*.{ts,tsx}",
+  ],
   prefix: "",
   theme: {
     container: {
@@ -14,8 +19,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        serif: ['Playfair Display', 'Georgia', 'serif'],
+        sans: ["Montserrat", "system-ui", "sans-serif"],
+        serif: ["Playfair Display", "Georgia", "serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -53,14 +58,14 @@ export default {
         },
       },
       boxShadow: {
-        'luxury': 'var(--shadow-luxury)',
-        'card': 'var(--shadow-card)',
-        'sm': 'var(--shadow-sm)',
+        luxury: "var(--shadow-luxury)",
+        card: "var(--shadow-card)",
+        sm: "var(--shadow-sm)",
       },
       backgroundImage: {
-        'gradient-luxury': 'var(--gradient-luxury)',
-        'gradient-gold': 'var(--gradient-gold)',
-        'gradient-subtle': 'var(--gradient-subtle)',
+        "gradient-luxury": "var(--gradient-luxury)",
+        "gradient-gold": "var(--gradient-gold)",
+        "gradient-subtle": "var(--gradient-subtle)",
       },
       borderRadius: {
         lg: "var(--radius)",

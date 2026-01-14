@@ -1,9 +1,15 @@
+// src/pages/Cart.tsx
 import { Link } from "react-router-dom";
 import { useCart } from "@/contexts/CartContext";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
-import { createCheckoutIntentFromCart } from "@/services/orderService";
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import {
+  createCheckoutIntentFromCart,
+  type CheckoutIntentResponse,
+} from "@/services/orderService";
+import type { CartItem } from "@/contexts/CartContext";
 
 // 💸 Même logique de remise que le backend (MAGIC10 = -10%, MAGIC5 = -5€)
 const DISCOUNT_CODES: Record<
@@ -58,7 +64,20 @@ const Cart = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 🔹 Mutation React Query pour le checkout
+  const { mutateAsync: checkoutIntent, isPending } = useMutation<
+    CheckoutIntentResponse,
+    Error,
+    {
+      items: CartItem[];
+      customer: { name: string; email: string };
+      discountCode?: string;
+    }
+  >({
+    mutationFn: ({ items, customer, discountCode }) =>
+      createCheckoutIntentFromCart(items, customer, discountCode),
+  });
 
   const handleCheckout = async () => {
     // 🔎 simple validation côté client
@@ -75,7 +94,6 @@ const Cart = () => {
     }
 
     setFormError(null);
-    setIsSubmitting(true);
 
     try {
       const customer = {
@@ -83,19 +101,17 @@ const Cart = () => {
         email: customerEmail.trim(),
       };
 
-      const { orderId, redirectUrl } = await createCheckoutIntentFromCart(
+      const { orderId, redirectUrl } = await checkoutIntent({
         items,
         customer,
-        discountCode || undefined
-      );
+        discountCode: discountCode || undefined,
+      });
 
       localStorage.setItem("lastOrderId", orderId);
       window.location.href = redirectUrl;
     } catch (e) {
       console.error(e);
       alert("Checkout failed. Check console.");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -360,9 +376,9 @@ const Cart = () => {
               className="w-full mt-6"
               size="lg"
               onClick={handleCheckout}
-              disabled={isSubmitting}
+              disabled={isPending}
             >
-              {isSubmitting ? "Reindirizzamento..." : "Procedi al Checkout"}
+              {isPending ? "Reindirizzamento..." : "Procedi al Checkout"}
             </Button>
 
             <Link

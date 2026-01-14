@@ -1,6 +1,7 @@
 // src/pages/Catalog.tsx
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   getProducts,
   getCollections,
@@ -18,89 +19,65 @@ import {
 
 const Catalog = () => {
   const [searchParams] = useSearchParams();
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [collections, setCollections] = useState<CollectionSummary[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string>("all");
   const [selectedSort, setSelectedSort] = useState<string>("featured");
-  const [loading, setLoading] = useState<boolean>(true);
 
-  // Cache des produits par collection pour éviter de refetch à chaque tri
-  const [collectionCache, setCollectionCache] = useState<
-    Record<string, Product[]>
-  >({});
+  // 🔹 Tous les produits
+  const { data: allProducts = [], isLoading: productsLoading } = useQuery<
+    Product[]
+  >({
+    queryKey: ["products"],
+    queryFn: getProducts,
+  });
 
-  // Chargement initial : tous les produits + toutes les collections
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const [productsFromApi, collectionsFromApi] = await Promise.all([
-        getProducts(),
-        getCollections(),
-      ]);
-      setAllProducts(productsFromApi);
-      setCollections(collectionsFromApi);
-      setLoading(false);
-    };
+  // 🔹 Collections
+  const { data: collections = [], isLoading: collectionsLoading } = useQuery<
+    CollectionSummary[]
+  >({
+    queryKey: ["collections"],
+    queryFn: getCollections,
+  });
 
-    loadData().catch(console.error);
-  }, []);
+  // 🔹 Produits d'une collection spécifique (si sélectionnée)
+  const {
+    data: collectionProducts = [],
+    isLoading: collectionProductsLoading,
+  } = useQuery<Product[]>({
+    queryKey: ["collectionProducts", selectedCollection],
+    queryFn: () => getProductsByCollection(selectedCollection),
+    enabled: selectedCollection !== "all",
+  });
 
-  // Appliquer filtres + tri dès que quelque chose change
-  useEffect(() => {
-    const applyFilters = async () => {
-      setLoading(true);
+  const baseProducts: Product[] =
+    selectedCollection === "all" ? allProducts : collectionProducts;
 
-      let baseProducts: Product[];
+  const filteredProducts = useMemo(() => {
+    let filtered = [...baseProducts];
 
-      // Choix de la source (all ou collection)
-      if (selectedCollection === "all") {
-        baseProducts = allProducts;
-      } else {
-        // On regarde si on a déjà cette collection dans le cache
-        if (!collectionCache[selectedCollection]) {
-          const products = await getProductsByCollection(selectedCollection);
-          setCollectionCache((prev) => ({
-            ...prev,
-            [selectedCollection]: products,
-          }));
-          baseProducts = products;
-        } else {
-          baseProducts = collectionCache[selectedCollection];
-        }
-      }
+    // Filtre URL (?filter=new / ?filter=sale)
+    const filter = searchParams.get("filter");
+    if (filter === "new") {
+      filtered = filtered.filter((p) => p.isNew);
+    } else if (filter === "sale") {
+      filtered = filtered.filter((p) => p.isOnSale);
+    }
 
-      let filtered = [...baseProducts];
+    // Tri
+    if (selectedSort === "price-asc") {
+      filtered.sort((a, b) => a.price - b.price);
+    } else if (selectedSort === "price-desc") {
+      filtered.sort((a, b) => b.price - a.price);
+    } else if (selectedSort === "name") {
+      filtered.sort((a, b) => a.title.localeCompare(b.title));
+    }
 
-      // Filtre URL (?filter=new / ?filter=sale)
-      const filter = searchParams.get("filter");
-      if (filter === "new") {
-        filtered = filtered.filter((p) => p.isNew);
-      } else if (filter === "sale") {
-        filtered = filtered.filter((p) => p.isOnSale);
-      }
+    return filtered;
+  }, [baseProducts, searchParams, selectedSort]);
 
-      // Tri
-      if (selectedSort === "price-asc") {
-        filtered.sort((a, b) => a.price - b.price);
-      } else if (selectedSort === "price-desc") {
-        filtered.sort((a, b) => b.price - a.price);
-      } else if (selectedSort === "name") {
-        filtered.sort((a, b) => a.title.localeCompare(b.title));
-      }
-
-      setFilteredProducts(filtered);
-      setLoading(false);
-    };
-
-    applyFilters().catch(console.error);
-  }, [
-    allProducts,
-    selectedCollection,
-    selectedSort,
-    searchParams,
-    collectionCache,
-  ]);
+  const loading =
+    productsLoading ||
+    collectionsLoading ||
+    (selectedCollection !== "all" && collectionProductsLoading);
 
   return (
     <div className="min-h-screen py-12">

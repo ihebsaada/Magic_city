@@ -7,6 +7,7 @@ import { VerticalGallerySection } from "@/components/home/VerticalGallerySection
 import { ScrollingPromoBar } from "@/components/home/ScrollingPromoBar";
 import { SatisfiedClientsSection } from "@/components/home/SatisfiedClientsSection";
 import { PromoDiscountSection } from "@/components/home/PromoDiscountSection";
+import { HelpCenterSection } from "@/components/home/HelpCenterSection";
 
 const SHOPIFY_MEDIA_BASE = "https://uc9d1w-mj.myshopify.com";
 
@@ -55,6 +56,7 @@ const Home = () => {
       <ScrollingPromoBar />
       <HorizontalMediaMarquee items={marqueeItems} />
       <ServicesSection />
+      <HelpCenterSection />
     </div>
   );
 };
