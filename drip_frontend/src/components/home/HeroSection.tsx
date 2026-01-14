@@ -1,57 +1,3 @@
-// import { Link } from "react-router-dom";
-// import { Button } from "@/components/ui/button";
-// import { ArrowRight } from "lucide-react";
-
-// export const HeroSection = () => {
-//   return (
-//     <section className="relative h-[70vh] min-h-[500px] overflow-hidden bg-primary">
-//       {/* Background Image */}
-//       <div
-//         className="absolute inset-0 bg-cover bg-center"
-//         style={{
-//           backgroundImage: "url('https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=1600&q=80')",
-//         }}
-//       >
-//         <div className="absolute inset-0 bg-gradient-to-r from-primary/90 via-primary/60 to-transparent" />
-//       </div>
-
-//       {/* Content */}
-//       <div className="container relative mx-auto flex h-full items-center px-4">
-//         <div className="max-w-2xl text-primary-foreground">
-//           <h1 className="mb-4 font-serif text-5xl font-bold leading-tight md:text-6xl lg:text-7xl">
-//             Look moderni per tutti i giorni
-//           </h1>
-//           <p className="mb-8 text-lg text-primary-foreground/90 md:text-xl">
-//             Scopri la nostra selezione curata di sneakers luxury italiane e internazionali.
-//             Stile, comfort e qualità senza compromessi.
-//           </p>
-//           <div className="flex flex-wrap gap-4">
-//             <Button
-//               asChild
-//               size="lg"
-//               className="bg-accent text-accent-foreground hover:bg-accent/90"
-//             >
-//               <Link to="/collections">
-//                 Scopri le Collezioni
-//                 <ArrowRight className="ml-2 h-5 w-5" />
-//               </Link>
-//             </Button>
-//             <Button
-//               asChild
-//               size="lg"
-//               variant="outline"
-//               className="border-primary-foreground bg-transparent text-primary-foreground hover:bg-primary-foreground hover:text-primary"
-//             >
-//               <Link to="/catalog?filter=new">
-//                 Nuovi Arrivi
-//               </Link>
-//             </Button>
-//           </div>
-//         </div>
-//       </div>
-//     </section>
-//   );
-// };
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
@@ -77,7 +23,7 @@ const slides: HeroSlide[] = [
     ctaLabel: "Scopri Di Più",
     ctaLink: "/catalog",
     imageUrl:
-      "https://cdn.shopify.com/s/files/1/0958/6737/1837/files/Logo_Wemaad.png?v=1760804024", // à remplacer par l'image OFF-WHITE réelle
+      "https://cdn.shopify.com/s/files/1/0958/6737/1837/files/Logo_Wemaad.png?v=1760804024",
   },
   {
     id: 2,
@@ -97,7 +43,6 @@ const SLIDE_INTERVAL = 4000;
 export const HeroSection = () => {
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // autoplay
   useEffect(() => {
     const id = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % slides.length);
@@ -112,7 +57,7 @@ export const HeroSection = () => {
   const goPrev = () => goTo(activeIndex - 1);
 
   return (
-    <section className="relative overflow-hidden bg-black text-white md:h-[80vh] min-h-[520px]">
+    <section className="relative overflow-hidden bg-black text-white md:h-[85vh] min-h-[520px]">
       {/* SLIDES */}
       {slides.map((slide, index) => {
         const isActive = index === activeIndex;
@@ -132,13 +77,20 @@ export const HeroSection = () => {
             {/* Overlay Shopify-like */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10 md:bg-gradient-to-r md:from-black/80 md:via-black/60 md:to-black/10" />
 
-            {/* CONTENT (texte + CTA) */}
-            <div className="relative z-10 flex h-full items-center">
-              <div className="container mx-auto px-4 md:pl-12 lg:pl-20 pb-10 md:pb-16">
-                {/* bloc qui fait l’animation drop-down */}
+            {/* CONTENT */}
+            <div className="relative z-10 flex h-full items-center lg:items-end">
+              <div
+                className="
+                      container mx-auto
+      px-4 md:pl-14 lg:pl-20
+      flex flex-col justify-end
+      h-full
+      pb-14 sm:pb-18
+      md:pb-24 lg:pb-28 xl:pb-32 
+                    "
+              >
                 <div
-                  className={`max-w-[680px] space-y-4 md:space-y-6 transform transition-all duration-700
-                    lg:mt-10 
+                  className={`max-w-[600px] space-y-4 md:space-y-6 transform transition-all duration-700
                     ${
                       isActive
                         ? "translate-y-0 opacity-100"
@@ -146,22 +98,21 @@ export const HeroSection = () => {
                     }`}
                 >
                   {/* EYEBROW */}
-                  <p className="mb-2 text-xs font-semibold tracking-[0.25em] text-white/80 sm:text-sm">
+                  <p className="mb-1 text-[10px] sm:text-xs font-semibold tracking-[0.25em] text-white/80">
                     {slide.eyebrow}
                   </p>
 
-                  {/* TITLE (même taille que Shopify) */}
+                  {/* TITLE */}
                   <h1
                     className="
                       whitespace-pre-line
-                      font-serif
-                      font-bold
-                      leading-tight
-                      text-[18px]
-                     sm:text-[22px]
-                      md:text-[28px]
-                      lg:text-[34px]
-                      max-w-[580px] "
+                      font-serif font-bold leading-tight
+                      text-[20px]
+                      sm:text-[24px]
+                      md:text-[32px]
+                      lg:text-[40px]
+                      max-w-[580px]
+                    "
                   >
                     {slide.title}
                   </h1>
@@ -172,11 +123,11 @@ export const HeroSection = () => {
                   </p>
 
                   {/* CTA */}
-                  <div className="mt-4 flex flex-wrap gap-4">
+                  <div className="mt-5 flex flex-wrap gap-4">
                     <Button
                       asChild
                       size="lg"
-                      className="rounded-full bg-white px-8 py-6 text-[17px] text-black hover:bg-white/90"
+                      className="rounded-full bg-white px-8 py-6 text-[16px] sm:text-[17px] text-black hover:bg-white/90"
                     >
                       <Link to={slide.ctaLink}>
                         {slide.ctaLabel}
@@ -191,11 +142,11 @@ export const HeroSection = () => {
         );
       })}
 
-      {/* ARROWS < > */}
+      {/* ARROWS */}
       <button
         type="button"
         onClick={goPrev}
-        className="absolute left-4 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow-md hover:bg-white"
+        className="absolute left-3 md:left-6 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow-md hover:bg-white"
       >
         <ChevronLeft className="h-5 w-5" />
       </button>
@@ -203,13 +154,13 @@ export const HeroSection = () => {
       <button
         type="button"
         onClick={goNext}
-        className="absolute right-4 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow-md hover:bg-white"
+        className="absolute right-3 md:right-6 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-black shadow-md hover:bg-white"
       >
         <ChevronRight className="h-5 w-5" />
       </button>
 
-      {/* BULLETS en bas (cercle + point) */}
-      <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 space-x-3 md:bottom-6">
+      {/* BULLETS */}
+      <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 space-x-3 md:bottom-8">
         {slides.map((slide, index) => {
           const isActive = index === activeIndex;
           return (
@@ -229,7 +180,7 @@ export const HeroSection = () => {
         })}
       </div>
 
-      {/* pour éviter flash au tout début sur certains navigateurs */}
+      {/* anti-flash */}
       <div className="invisible relative block pb-[70vh] md:pb-0" />
     </section>
   );
