@@ -47,7 +47,7 @@ const OrderConfirmation = () => {
 
   useEffect(() => {
     if (!sessionId) {
-      setError("Missing session_id (Stripe).");
+      setError("Session_id (Stripe) mancante.");
       setLoading(false);
       return;
     }
@@ -59,7 +59,7 @@ const OrderConfirmation = () => {
         );
         const data: ConfirmResponse = await res.json();
 
-        if (!res.ok) throw new Error(data?.error ?? "Confirm failed");
+        if (!res.ok) throw new Error(data?.error ?? "Conferma non riuscita");
 
         const isPaid = Boolean(data.paid);
         setPaid(isPaid);
@@ -111,22 +111,22 @@ const OrderConfirmation = () => {
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 animate-fade-in">
               <Loader2 className="h-12 w-12 text-accent animate-spin mb-4" />
-              <p className="text-muted-foreground">Confirming payment...</p>
+              <p className="text-muted-foreground">Conferma del pagamento...</p>
             </div>
           ) : error ? (
             <Card className="animate-fade-in">
               <CardContent className="flex flex-col items-center py-12">
                 <AlertCircle className="h-16 w-16 text-destructive mb-4" />
                 <h2 className="text-xl font-semibold mb-2">
-                  Unable to Confirm Payment
+                  Impossibile confermare il pagamento
                 </h2>
                 <p className="text-muted-foreground mb-6">{error}</p>
 
                 <div className="flex gap-3 flex-wrap justify-center">
                   <Button asChild variant="outline">
-                    <Link to={backToCheckoutHref}>Back to checkout</Link>
+                    <Link to={backToCheckoutHref}>Torna al checkout</Link>
                   </Button>
-                  <Button onClick={() => navigate("/")}>Return Home</Button>
+                  <Button onClick={() => navigate("/")}>Torna alla home</Button>
                 </div>
               </CardContent>
             </Card>
@@ -136,9 +136,9 @@ const OrderConfirmation = () => {
                 <div className="mx-auto w-16 h-16 rounded-full bg-success/10 flex items-center justify-center mb-4">
                   <CheckCircle className="h-8 w-8 text-success" />
                 </div>
-                <CardTitle className="text-2xl">Order Confirmed</CardTitle>
+                <CardTitle className="text-2xl">Ordine confermato</CardTitle>
                 <p className="text-muted-foreground mt-2">
-                  Thank you for your purchase
+                  Grazie per il tuo acquisto
                 </p>
               </CardHeader>
 
@@ -146,7 +146,7 @@ const OrderConfirmation = () => {
                 <div className="bg-muted/50 rounded-lg p-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-muted-foreground">Order ID</span>
+                      <span className="text-muted-foreground">ID ordine</span>
                       <p className="font-mono font-medium">
                         {order?.id
                           ? `${order.id.slice(0, 8)}...`
@@ -156,13 +156,13 @@ const OrderConfirmation = () => {
                       </p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Status</span>
+                      <span className="text-muted-foreground">Stato</span>
                       <p className="font-medium capitalize text-success">
-                        {order?.status ?? "paid"}
+                        {order?.status ?? "pagato"}
                       </p>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-muted-foreground">Date</span>
+                      <span className="text-muted-foreground">Data</span>
                       <p className="font-medium">
                         {order?.createdAt
                           ? formatDate(order.createdAt)
@@ -177,7 +177,7 @@ const OrderConfirmation = () => {
                   <>
                     <Separator />
                     <div>
-                      <h3 className="font-medium mb-4">Order Items</h3>
+                      <h3 className="font-medium mb-4">Articoli dell'ordine</h3>
                       <div className="space-y-3">
                         {order.items.map((item, index) => (
                           <div
@@ -205,7 +205,7 @@ const OrderConfirmation = () => {
                         <Separator />
                         <div className="flex justify-between items-center">
                           <span className="text-lg font-medium">
-                            Total Paid
+                            Totale pagato
                           </span>
                           <span className="text-2xl font-bold font-mono">
                             {formatPrice(order.total)}
@@ -218,20 +218,19 @@ const OrderConfirmation = () => {
                   <>
                     <Separator />
                     <p className="text-sm text-muted-foreground">
-                      Payment is confirmed.
+                      Il pagamento è stato confermato.
                     </p>
                   </>
                 )}
 
                 <Button
-                  // onClick={() => navigate("/")}
                   onClick={() => {
                     window.location.href = SHOP_URL;
                   }}
                   className="w-full"
                   variant="outline"
                 >
-                  Continue Shopping
+                  Continua a fare acquisti
                 </Button>
               </CardContent>
             </Card>
@@ -240,14 +239,16 @@ const OrderConfirmation = () => {
               <CardContent className="flex flex-col items-center py-12">
                 <AlertCircle className="h-16 w-16 text-destructive mb-4" />
                 <h2 className="text-xl font-semibold mb-2">
-                  Payment not completed
+                  Pagamento non completato
                 </h2>
-                <p className="text-muted-foreground mb-6">You can try again.</p>
+                <p className="text-muted-foreground mb-6">
+                  Puoi riprovare a completare il pagamento.
+                </p>
                 <div className="flex gap-3 flex-wrap justify-center">
                   <Button asChild variant="outline">
-                    <Link to={backToCheckoutHref}>Back to checkout</Link>
+                    <Link to={backToCheckoutHref}>Torna al checkout</Link>
                   </Button>
-                  <Button onClick={() => navigate("/")}>Return Home</Button>
+                  <Button onClick={() => navigate("/")}>Torna alla home</Button>
                 </div>
               </CardContent>
             </Card>
@@ -258,7 +259,7 @@ const OrderConfirmation = () => {
       {/* Footer */}
       <footer className="border-t border-border py-6">
         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          Protected by industry-standard security measures
+          Protetto da misure di sicurezza conformi agli standard del settore
         </div>
       </footer>
     </div>
