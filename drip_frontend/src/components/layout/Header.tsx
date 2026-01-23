@@ -10,7 +10,6 @@ export const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
-  // 👉 on récupère les données des contexts
   const { items: wishlistItems } = useWishlist();
   const { getCartCount } = useCart();
 
@@ -25,6 +24,7 @@ export const Header = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // ferme le menu mobile quand on change de page
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location]);
@@ -46,23 +46,43 @@ export const Header = () => {
       )}
     >
       <div className="container mx-auto px-4">
-        <div className="flex h-20 items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <span>
-              <img
-                src="//magiccitydrip.com/cdn/shop/files/2_98ef3367-cacc-470a-8bfb-d612b9688d07.png?v=1760888443&width=165"
-                alt="Magic City Drip logo"
-                className="h-10 w-auto"
-              />
-            </span>
-            <span className="font-serif text-2xl font-bold tracking-tight">
+        {/* ROW PRINCIPALE : logo + nav + icônes (UNE SEULE LIGNE SUR DESKTOP) */}
+        <div className="flex h-20 items-center relative">
+          {/* LEFT : bouton burger (mobile uniquement) */}
+          <button
+            className="p-2 md:hidden z-20"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
+
+          {/* LOGO : centré sur mobile, à gauche sur desktop */}
+          <Link
+            to="/"
+            className="
+              flex items-center space-x-2
+              absolute left-1/2 -translate-x-1/2
+              md:static md:translate-x-0
+            "
+          >
+            <img
+              src="https://uc9d1w-mj.myshopify.com/cdn/shop/files/2_98ef3367-cacc-470a-8bfb-d612b9688d07.png?v=1760888443&width=165"
+              alt="Magic City Drip logo"
+              className="h-16 w-auto"
+            />
+            {/* texte logo caché sur mobile, visible desktop */}
+            <span className="hidden font-serif text-2xl font-bold tracking-tight md:inline">
               Magic City Drip
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden items-center space-x-8 md:flex">
+          {/* NAV DESKTOP : prend la place au centre */}
+          <nav className="hidden md:flex flex-1 items-center justify-center space-x-8 ml-6">
             {navLinks.map((link) => (
               <Link
                 key={link.path}
@@ -79,8 +99,8 @@ export const Header = () => {
             ))}
           </nav>
 
-          {/* Right Icons */}
-          <div className="flex items-center space-x-4">
+          {/* RIGHT : icônes, poussées à droite avec ml-auto */}
+          <div className="ml-auto flex items-center gap-4">
             {/* Wishlist */}
             <Link
               to="/wishlist"
@@ -108,23 +128,10 @@ export const Header = () => {
                 </span>
               )}
             </Link>
-
-            {/* Mobile Menu Toggle */}
-            <button
-              className="p-2 md:hidden"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {mobileMenuOpen ? (
-                <X className="h-6 w-6" />
-              ) : (
-                <Menu className="h-6 w-6" />
-              )}
-            </button>
           </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* NAV MOBILE (sous la ligne, seulement quand menu ouvert) */}
         {mobileMenuOpen && (
           <nav className="border-t py-4 md:hidden">
             <div className="flex flex-col space-y-3">

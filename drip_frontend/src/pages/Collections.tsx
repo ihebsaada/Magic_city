@@ -1,6 +1,6 @@
 // src/pages/Collections.tsx
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
   getCollections,
   getProductsByCollection,
@@ -16,47 +16,42 @@ interface CollectionWithImage {
 }
 
 const Collections = () => {
-  const [collections, setCollections] = useState<CollectionWithImage[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const { data: collections = [], isLoading } = useQuery<CollectionWithImage[]>(
+    {
+      queryKey: ["collections-with-images"],
+      queryFn: async () => {
+        const collectionSummaries = await getCollections();
 
-  useEffect(() => {
-    const loadCollections = async () => {
-      setLoading(true);
-      const collectionSummaries = await getCollections();
+        const collectionsWithImages = await Promise.all(
+          collectionSummaries.map(async (col: CollectionSummary) => {
+            let image = "";
+            try {
+              const products: Product[] = await getProductsByCollection(
+                col.handle
+              );
+              const first = products[0];
+              image = first?.mainImage ?? "";
+            } catch (e) {
+              console.error(
+                "Error fetching products for collection",
+                col.handle,
+                e
+              );
+            }
 
-      const collectionsWithImages = await Promise.all(
-        collectionSummaries.map(async (col: CollectionSummary) => {
-          // On récupère quelques produits juste pour avoir une image “cover”
-          let image = "";
-          try {
-            const products: Product[] = await getProductsByCollection(
-              col.handle
-            );
-            const first = products[0];
-            image = first?.mainImage ?? "";
-          } catch (e) {
-            console.error(
-              "Error fetching products for collection",
-              col.handle,
-              e
-            );
-          }
+            return {
+              handle: col.handle,
+              name: col.title,
+              image,
+              count: col.productsCount,
+            };
+          })
+        );
 
-          return {
-            handle: col.handle,
-            name: col.title,
-            image,
-            count: col.productsCount,
-          };
-        })
-      );
-
-      setCollections(collectionsWithImages);
-      setLoading(false);
-    };
-
-    loadCollections().catch(console.error);
-  }, []);
+        return collectionsWithImages;
+      },
+    }
+  );
 
   return (
     <div className="min-h-screen py-12">
@@ -71,14 +66,17 @@ const Collections = () => {
           </p>
         </div>
 
-        {loading && (
-          <div className="py-16 text-center text-muted-foreground">
-            Caricamento...
+        {/* Skeleton pendant le chargement (optionnel) */}
+        {isLoading && (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-64 rounded-sm bg-muted animate-pulse" />
+            ))}
           </div>
         )}
 
         {/* Collections Grid */}
-        {!loading && (
+        {!isLoading && (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {collections.map((collection) => (
               <Link

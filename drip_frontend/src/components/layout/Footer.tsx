@@ -1,148 +1,145 @@
 import { Link } from "react-router-dom";
-import { Instagram, Facebook } from "lucide-react";
+import { Instagram, Facebook, MapPin, Phone, Mail } from "lucide-react";
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 export const Footer = () => {
   return (
-    <footer className="border-t bg-muted/30">
-      {/* Newsletter */}
+    <footer className="border-t bg-background pb-20 md:pb-10">
+      {/* ─────────────────────
+          BLOC PRINCIPAL (infos + newsletter)
+      ────────────────────── */}
       <div className="border-b">
-        <div className="container mx-auto px-4 py-12">
-          <div className="mx-auto max-w-2xl text-center">
-            <h3 className="mb-2 font-serif text-2xl font-bold">
-              Iscriviti alla Newsletter
-            </h3>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Ricevi in anteprima notizie su nuovi arrivi, offerte esclusive e molto altro
+        <div className="container mx-auto grid grid-cols-1 gap-10 px-6 py-10 md:grid-cols-2 md:py-14">
+          {/* COLONNE GAUCHE : infos boutique */}
+          <div className="space-y-4 text-xs text-muted-foreground md:text-[13px]">
+            <p>
+              Proponiamo solo modelli in cui crediamo dal punto di vista etico
+              ed estetico: pezzi 1:1, fatti per durare.{" "}
+              <button
+                type="button"
+                className="inline-flex text-[11px] font-semibold underline underline-offset-4 hover:text-foreground"
+              >
+                Scopri di più
+              </button>
             </p>
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                placeholder="La tua email"
-                className="bg-background"
-              />
-              <Button variant="default" className="bg-primary hover:bg-primary/90">
-                Iscriviti
-              </Button>
+
+            <div className="space-y-2 pt-2">
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-[2px] h-4 w-4" />
+                <span>Viale della Speranza 13 Milano MI 20146</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Phone className="mt-[2px] h-4 w-4" />
+                <span>+1 (973) 435-3638</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <Mail className="mt-[2px] h-4 w-4" />
+                <span>info@magiccitydrip.com</span>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Main Footer */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid gap-8 md:grid-cols-4">
-          {/* Brand */}
-          <div>
-            <h4 className="mb-4 font-serif text-xl font-bold">
-              Magic City Drip
-            </h4>
-            <p className="text-sm text-muted-foreground">
-              Le migliori sneakers luxury italiane e internazionali. Qualità, stile e autenticità garantita.
+          {/* COLONNE DROITE : newsletter style screenshot */}
+          <div className="text-xs md:text-[13px]">
+            <h3 className="text-sm font-semibold text-foreground md:text-base">
+              Iscriviti alla Newsletter
+            </h3>
+
+            <p className="mt-2 text-[11px] text-muted-foreground md:text-xs">
+              Resta aggiornato sui nuovi arrivi, offerte esclusive e sconti
+              riservati.
             </p>
-            <div className="mt-4 flex space-x-3">
+
+            <form className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <Input
+                type="email"
+                placeholder="Inserisci il tuo indirizzo e-mail per iscriverti"
+                className="h-9 flex-1 rounded-full border bg-background px-4 text-[11px] md:h-10 md:text-xs"
+                required
+              />
+              <Button
+                type="submit"
+                className="h-9 whitespace-nowrap rounded-full px-6 text-[11px] font-semibold md:h-10 md:text-xs"
+              >
+                Iscriviti
+              </Button>
+            </form>
+
+            <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground md:text-[11px]">
+              Inserendo la tua e-mail accetti i termini e condizioni e
+              l&apos;informativa sulla privacy.
+            </p>
+
+            {/* Réseaux sociaux en petits ronds */}
+            <div className="mt-4 flex gap-3">
               <a
                 href="https://instagram.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="transition-colors hover:text-accent"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-muted-foreground/40 text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Instagram"
               >
-                <Instagram className="h-5 w-5" />
+                <Instagram className="h-4 w-4" />
               </a>
               <a
                 href="https://facebook.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="transition-colors hover:text-accent"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-muted-foreground/40 text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label="Facebook"
               >
-                <Facebook className="h-5 w-5" />
+                <Facebook className="h-4 w-4" />
               </a>
             </div>
-          </div>
-
-          {/* Shop */}
-          <div>
-            <h5 className="mb-4 font-medium">Shop</h5>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link to="/catalog" className="text-muted-foreground transition-colors hover:text-foreground">
-                  Catalogo
-                </Link>
-              </li>
-              <li>
-                <Link to="/collections" className="text-muted-foreground transition-colors hover:text-foreground">
-                  Collezioni
-                </Link>
-              </li>
-              <li>
-                <Link to="/catalog?filter=new" className="text-muted-foreground transition-colors hover:text-foreground">
-                  Nuovi Arrivi
-                </Link>
-              </li>
-              <li>
-                <Link to="/catalog?filter=sale" className="text-muted-foreground transition-colors hover:text-foreground">
-                  Saldi
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Assistenza */}
-          <div>
-            <h5 className="mb-4 font-medium">Assistenza</h5>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link to="/contact" className="text-muted-foreground transition-colors hover:text-foreground">
-                  Contatti
-                </Link>
-              </li>
-              <li>
-                <Link to="/faq" className="text-muted-foreground transition-colors hover:text-foreground">
-                  FAQ
-                </Link>
-              </li>
-              <li>
-                <a href="#" className="text-muted-foreground transition-colors hover:text-foreground">
-                  Spedizioni
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-muted-foreground transition-colors hover:text-foreground">
-                  Resi e Cambi
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Info */}
-          <div>
-            <h5 className="mb-4 font-medium">Informazioni</h5>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>Milano, Italia</li>
-              <li>info@magiccitydrip.com</li>
-              <li>+39 02 1234 5678</li>
-              <li className="pt-2">Lun-Ven: 9:00 - 18:00</li>
-            </ul>
           </div>
         </div>
       </div>
 
-      {/* Bottom Bar */}
-      <div className="border-t">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex flex-col items-center justify-between gap-4 text-sm text-muted-foreground md:flex-row">
-            <p>© 2025 Magic City Drip. Tutti i diritti riservati.</p>
-            <div className="flex gap-6">
-              <a href="#" className="transition-colors hover:text-foreground">
-                Privacy Policy
-              </a>
-              <a href="#" className="transition-colors hover:text-foreground">
-                Termini & Condizioni
-              </a>
-            </div>
+      {/* ─────────────────────
+          BARRE DU BAS (pays + copyright + paiements)
+      ────────────────────── */}
+      <div className="bg-muted/40">
+        <div className="container mx-auto flex flex-col items-center justify-between gap-4 px-6 py-4 text-[11px] text-muted-foreground md:flex-row md:text-xs">
+          {/* Pays / monnaie */}
+          <div className="flex items-center gap-2">
+            <span className="text-base">🇮🇹</span>
+            <span>Italia (EUR €)</span>
+          </div>
+
+          <p className="text-center">
+            © 2025 Magic City Drip store. All rights reserved.
+          </p>
+
+          {/* Icônes paiement */}
+          {/* Icônes paiement */}
+          <div className="flex items-center gap-2">
+            <img
+              src="/payment/PayPal.png"
+              alt="PayPal"
+              className="h-6 w-auto rounded bg-white px-1 py-0.5 shadow-sm"
+            />
+            <img
+              src="/payment/Mastercard.png"
+              alt="Mastercard"
+              className="h-6 w-auto rounded bg-white px-1 py-0.5 shadow-sm"
+            />
+            <img
+              src="/payment/visa.png"
+              alt="Visa"
+              className="h-6 w-auto rounded bg-white px-1 py-0.5 shadow-sm"
+            />
+            <img
+              src="/payment/amex.webp"
+              alt="Amex"
+              className="h-6 w-auto rounded bg-white px-1 py-0.5 shadow-sm"
+            />
+            <img
+              src="/payment/applepay.png"
+              alt="Apple Pay"
+              className="h-6 w-auto rounded bg-white px-1 py-0.5 shadow-sm"
+            />
           </div>
         </div>
       </div>

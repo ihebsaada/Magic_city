@@ -16,6 +16,7 @@ import Cart from "./pages/Cart";
 import Wishlist from "./pages/Wishlist";
 import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
+import { LoadingProvider } from "./contexts/LoadingContext";
 
 const queryClient = new QueryClient();
 
@@ -26,25 +27,28 @@ const App = () => (
         <WishlistProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route path="/" element={<Home />} />
-                <Route path="/catalog" element={<Catalog />} />
-                <Route path="/collections" element={<Collections />} />
-                <Route
-                  path="/collections/:collectionHandle"
-                  element={<CollectionDetail />}
-                />
-                <Route path="/product/:handle" element={<ProductDetail />} />
-                <Route path="/cart" element={<Cart />} />
-                <Route path="/wishlist" element={<Wishlist />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/faq" element={<FAQ />} />
-                <Route path="*" element={<NotFound />} />
-              </Route>
-            </Routes>
-          </BrowserRouter>
+          <LoadingProvider>
+            <BrowserRouter>
+              {/* <GlobalQueryLoader /> */}
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/catalog" element={<Catalog />} />
+                  <Route path="/collections" element={<Collections />} />
+                  <Route
+                    path="/collections/:collectionHandle"
+                    element={<CollectionDetail />}
+                  />
+                  <Route path="/product/:handle" element={<ProductDetail />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/wishlist" element={<Wishlist />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/faq" element={<FAQ />} />
+                  <Route path="*" element={<NotFound />} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </LoadingProvider>
         </WishlistProvider>
       </CartProvider>
     </TooltipProvider>

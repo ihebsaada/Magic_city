@@ -1,54 +1,45 @@
 import React, { useRef } from "react";
 
-type TestimonialProduct = {
-  name: string;
-  price: string;
-  image: string;
-  href?: string;
-};
-
-type Testimonial = {
+type InstaFeedback = {
   id: number;
+  image: string;
   customer: string;
-  quote: string;
-  product: TestimonialProduct;
+  highlight: string;
+  caption: string;
 };
 
-const TESTIMONIALS: Testimonial[] = [
+const FEEDBACKS: InstaFeedback[] = [
   {
     id: 1,
-    customer: "Cameron S.",
-    quote:
-      "Produit parfait, il garde très chaud sans surchauffer. La taille est vraie, je ne pourrais pas être plus satisfait de l’achat... Merci ! 🤗",
-    product: {
-      name: "Basket Louis Vuitton",
-      price: "184,90 € TVA incluse",
-      image:
-        "https://images.pexels.com/photos/1598505/pexels-photo-1598505.jpeg?auto=compress&cs=tinysrgb&w=600",
-    },
+    image: "/feedback/feedback-1.jpeg",
+    customer: "Cliente Instagram",
+    highlight: "“Arrivate, spaccano 🔥”",
+    caption:
+      "Il cliente riceve le sue sneakers, conferma la consegna e ci lascia un feedback 5⭐: «Arrivate, spaccano». Solo da Magic City 🚀",
   },
   {
     id: 2,
-    customer: "Algistino F.",
-    quote: "Un achat fantastique ! Je recommande vivement ! 😊",
-    product: {
-      name: "Baskets Hogan en cuir et tissu bleu foncé",
-      price: "207,50 € TVA incluse",
-      image:
-        "https://images.pexels.com/photos/2529148/pexels-photo-2529148.jpeg?auto=compress&cs=tinysrgb&w=600",
-    },
+    image: "/feedback/feedback-2.jpeg",
+    customer: "Cliente Instagram",
+    highlight: "“Sono arrivate, bellissime 😍”",
+    caption:
+      "Le sneakers arrivano, il cliente le trova bellissime e ci autorizza anche a condividere la sua recensione nelle stories.",
   },
   {
     id: 3,
-    customer: "Carie-Gosée H.",
-    quote:
-      "Ils sont tellement mignons et confortables. La couleur est parfaite. Je les adore ! 😍",
-    product: {
-      name: "Balenciaga – Basket de sport",
-      price: "199,90 € TVA incluse",
-      image:
-        "https://images.pexels.com/photos/1054777/pexels-photo-1054777.jpeg?auto=compress&cs=tinysrgb&w=600",
-    },
+    image: "/feedback/feedback-3.jpeg",
+    customer: "Cliente Instagram",
+    highlight: "Feedback 5⭐ su Instagram",
+    caption:
+      "Il cliente riceve la sua paia bianca, ci chiede solo di oscurare nome e foto profilo… già pronto per il prossimo ordine ❤️",
+  },
+  {
+    id: 4,
+    image: "/feedback/feedback-4.jpeg",
+    customer: "Cliente Instagram",
+    highlight: "“Arrivate, grazieee 🙏”",
+    caption:
+      "Dopo l’invio del tracking, il cliente conferma la consegna della sua paia Louis Vuitton e ci lascia un feedback 5⭐.",
   },
 ];
 
@@ -59,7 +50,7 @@ export const SatisfiedClientsSection: React.FC = () => {
     const container = scrollRef.current;
     if (!container) return;
 
-    const amount = container.clientWidth; // on scrolle d’une “page”
+    const amount = container.clientWidth; // scorriamo di una “pagina”
     container.scrollBy({
       left: direction === "next" ? amount : -amount,
       behavior: "smooth",
@@ -72,15 +63,15 @@ export const SatisfiedClientsSection: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-10 md:mb-14">
           <h2 className="text-xl md:text-2xl font-serif tracking-tight mb-3">
-            Clients satisfaits :
+            Clienti soddisfatti:
           </h2>
           <p className="text-sm md:text-base text-muted-foreground max-w-2xl mx-auto">
-            Les clients adorent nos produits, et nous nous efforçons toujours de
-            plaire à tout le monde.
+            Messaggi reali, clienti reali. Ecco alcuni feedback ricevuti
+            direttamente su Instagram dopo la consegna delle loro paia.
           </p>
         </div>
 
-        {/* Actions + slider */}
+        {/* Linea + pulsanti */}
         <div className="flex items-center justify-between gap-6 mb-6">
           <div className="flex-1 h-px bg-border" />
           <div className="flex items-center gap-3">
@@ -88,7 +79,7 @@ export const SatisfiedClientsSection: React.FC = () => {
               type="button"
               onClick={() => handleScroll("prev")}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-muted transition"
-              aria-label="Diapositive précédente"
+              aria-label="Diapositiva precedente"
             >
               <svg
                 width="10"
@@ -110,7 +101,7 @@ export const SatisfiedClientsSection: React.FC = () => {
               type="button"
               onClick={() => handleScroll("next")}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border bg-white shadow-sm hover:bg-muted transition"
-              aria-label="Diapositive suivante"
+              aria-label="Diapositiva successiva"
             >
               <svg
                 width="10"
@@ -131,36 +122,36 @@ export const SatisfiedClientsSection: React.FC = () => {
           </div>
         </div>
 
-        {/* Slider scrollable */}
+        {/* Slider scrollabile */}
         <div
           ref={scrollRef}
           className="flex gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-2 [-ms-overflow-style:none] [scrollbar-width:none]"
         >
-          {/* cacher la scrollbar visuellement */}
+          {/* nasconde visivamente la scrollbar webkit */}
           <style>{`
             [data-testimonials-scroll]::-webkit-scrollbar { display: none; }
           `}</style>
 
-          {TESTIMONIALS.map((item) => (
+          {FEEDBACKS.map((item) => (
             <article
               key={item.id}
-              className="snap-start min-w-[80%] md:min-w-[48%] lg:min-w-[46%] flex bg-white rounded-xl border shadow-sm overflow-hidden"
+              className="snap-start min-w-[80%] md:min-w-[48%] lg:min-w-[46%] flex flex-col md:flex-row bg-white rounded-xl border shadow-sm overflow-hidden"
               data-testimonials-scroll
             >
-              {/* Image produit à gauche sur desktop */}
-              <div className="hidden md:block w-1/3 relative overflow-hidden">
+              {/* Immagine Instagram: a sinistra su desktop, in alto su mobile */}
+              <div className="w-full md:w-1/2 relative bg-black">
                 <img
-                  src={item.product.image}
-                  alt={item.product.name}
-                  className="h-full w-full object-cover"
+                  src={item.image}
+                  alt={item.customer}
+                  className="h-full w-full object-contain md:object-cover mx-auto"
                   loading="lazy"
                 />
               </div>
 
-              {/* Contenu */}
+              {/* Contenuto testuale */}
               <div className="flex-1 flex items-center">
                 <div className="w-full px-5 md:px-7 py-6 md:py-7">
-                  {/* Rating */}
+                  {/* Rating 5★ */}
                   <div className="mb-3">
                     <div className="relative inline-flex">
                       <div className="flex gap-1 text-muted-foreground/40">
@@ -179,51 +170,27 @@ export const SatisfiedClientsSection: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Nom + badge */}
+                  {/* Nome + badge “Feedback da Instagram” */}
                   <div className="flex flex-wrap items-center gap-3 mb-3">
                     <span className="font-semibold text-sm md:text-base">
                       {item.customer}
                     </span>
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                      <svg
-                        width="12"
-                        height="9"
-                        viewBox="0 0 10 8"
-                        aria-hidden="true"
-                        className="text-emerald-500"
-                      >
-                        <path
-                          d="M9.05.65L3.33 6.2.95 3.89A.8.8 0 0 0 .17 3.73.8.8 0 0 0 0 4.28c0 .14.06.27.17.36l2.77 2.7c.1.1.25.16.42.16.16 0 .31-.06.42-.16L9.83 1.4A.8.8 0 0 0 10 1.04a.8.8 0 0 0-.95-.39z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                      <span>Acheteur vérifié</span>
+                      <span className="inline-flex h-6 items-center rounded-full bg-muted px-3 text-[11px]">
+                        Feedback da Instagram
+                      </span>
                     </span>
                   </div>
 
-                  {/* Quote */}
-                  <p className="text-sm md:text-[15px] text-muted-foreground mb-5">
-                    {item.quote}
+                  {/* Highlight (frase corta) */}
+                  <p className="text-sm md:text-[15px] font-medium mb-2">
+                    {item.highlight}
                   </p>
 
-                  {/* Produit */}
-                  <div className="border-t pt-4 mt-3 flex items-center gap-4">
-                    <div className="h-16 w-16 rounded-md overflow-hidden flex-shrink-0 md:hidden">
-                      <img
-                        src={item.product.image}
-                        alt={item.product.name}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-sm font-medium">
-                        {item.product.name}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        {item.product.price}
-                      </span>
-                    </div>
-                  </div>
+                  {/* Caption dettagliata */}
+                  <p className="text-sm md:text-[15px] text-muted-foreground">
+                    {item.caption}
+                  </p>
                 </div>
               </div>
             </article>

@@ -5,40 +5,42 @@ type GalleryItem = {
   alt?: string;
 };
 
+const SHOPIFY_MEDIA_BASE = "https://uc9d1w-mj.myshopify.com";
+
 const leftColumnItems: GalleryItem[] = [
   {
-    src: "//magiccitydrip.com/cdn/shop/files/IMG_6519.jpg?v=1760898157&width=1179",
+    src: `${SHOPIFY_MEDIA_BASE}/cdn/shop/files/IMG_6519.jpg?v=1760898157&width=1179`,
     alt: "Magic City Drip gallery 1",
   },
   {
-    src: "//magiccitydrip.com/cdn/shop/files/IMG_6523.jpg?v=1760898157&width=1179",
+    src: `${SHOPIFY_MEDIA_BASE}/cdn/shop/files/IMG_6523.jpg?v=1760898157&width=1179`,
     alt: "Magic City Drip gallery 2",
   },
   {
-    src: "//magiccitydrip.com/cdn/shop/files/IMG_6528.jpg?v=1760898156&width=1179",
+    src: `${SHOPIFY_MEDIA_BASE}/cdn/shop/files/IMG_6528.jpg?v=1760898156&width=1179`,
     alt: "Magic City Drip gallery 3",
   },
   {
-    src: "//magiccitydrip.com/cdn/shop/files/IMG_6527.jpg?v=1760898156&width=1179",
+    src: `${SHOPIFY_MEDIA_BASE}/cdn/shop/files/IMG_6527.jpg?v=1760898156&width=1179`,
     alt: "Magic City Drip gallery 4",
   },
 ];
 
 const rightColumnItems: GalleryItem[] = [
   {
-    src: "//magiccitydrip.com/cdn/shop/files/IMG_6525.jpg?v=1760898155&width=1179",
+    src: `${SHOPIFY_MEDIA_BASE}/cdn/shop/files/IMG_6525.jpg?v=1760898155&width=1179`,
     alt: "Magic City Drip gallery 5",
   },
   {
-    src: "//magiccitydrip.com/cdn/shop/files/IMG_6520.jpg?v=1760898156&width=1179",
+    src: `${SHOPIFY_MEDIA_BASE}/cdn/shop/files/IMG_6520.jpg?v=1760898156&width=1179`,
     alt: "Magic City Drip gallery 6",
   },
   {
-    src: "//magiccitydrip.com/cdn/shop/files/IMG_6526.jpg?v=1760898154&width=1179",
+    src: `${SHOPIFY_MEDIA_BASE}/cdn/shop/files/IMG_6526.jpg?v=1760898154&width=1179`,
     alt: "Magic City Drip gallery 7",
   },
   {
-    src: "//magiccitydrip.com/cdn/shop/files/IMG_6524.jpg?v=1760898154&width=1179",
+    src: `${SHOPIFY_MEDIA_BASE}/cdn/shop/files/IMG_6524.jpg?v=1760898154&width=1179`,
     alt: "Magic City Drip gallery 8",
   },
 ];

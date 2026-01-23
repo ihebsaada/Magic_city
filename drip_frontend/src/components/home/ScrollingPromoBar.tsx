@@ -1,8 +1,8 @@
 import React from "react";
 
 const MESSAGES = [
-  "20 % de réduction sur les commandes supérieures à 390 euros",
-  "Livraison gratuite à partir de 99,90 euros",
+  "20% di sconto per ordini oltre 390€",
+  "Spedizione gratuita per ordini a partire da 99,90€",
 ];
 
 export const ScrollingPromoBar: React.FC = () => {

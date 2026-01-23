@@ -2,52 +2,39 @@ import { Link } from "react-router-dom";
 import { useCart } from "@/contexts/CartContext";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
-import { createCheckoutIntentFromCart } from "@/services/orderService";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 
-// 💸 Même logique de remise que le backend (MAGIC10 = -10%, MAGIC5 = -5€)
-const DISCOUNT_CODES: Record<
-  string,
-  { type: "percent" | "fixed"; value: number }
-> = {
-  MAGIC10: { type: "percent", value: 10 },
-  MAGIC5: { type: "fixed", value: 5 },
+import {
+  createCheckoutIntentFromCart,
+  type CheckoutIntentResponse,
+  type ShippingPayload,
+} from "@/services/orderService";
+
+import type { CartItem } from "@/contexts/CartContext";
+import { apiPost } from "@/services/api";
+
+// ✅ preview endpoint response (backend: POST /discounts/preview)
+type DiscountPreviewResponse = {
+  valid: boolean;
+  appliedCode: string | null;
+  discountAmount: number;
+  total: number;
+  reason?:
+    | "EMPTY"
+    | "NOT_FOUND"
+    | "INACTIVE"
+    | "EXPIRED"
+    | "LIMIT_REACHED"
+    | "ERROR"
+    | null;
 };
 
-function computeDiscountPreview(subtotal: number, code: string) {
-  const raw = (code ?? "").trim();
-  if (!raw) {
-    return {
-      discountAmount: 0,
-      finalSubtotal: subtotal,
-      appliedCode: undefined as string | undefined,
-      isValid: false,
-    };
-  }
-
-  const normalized = raw.toUpperCase();
-  const rule = DISCOUNT_CODES[normalized];
-
-  if (!rule) {
-    return {
-      discountAmount: 0,
-      finalSubtotal: subtotal,
-      appliedCode: undefined,
-      isValid: false,
-    };
-  }
-
-  const discountAmount =
-    rule.type === "percent" ? (subtotal * rule.value) / 100 : rule.value;
-
-  const finalSubtotal = Math.max(subtotal - discountAmount, 0);
-
-  return {
-    discountAmount,
-    finalSubtotal,
-    appliedCode: normalized,
-    isValid: true,
-  };
+async function previewDiscount(subtotal: number, discountCode: string) {
+  return apiPost<DiscountPreviewResponse>("/discounts/preview", {
+    subtotal,
+    discountCode,
+  });
 }
 
 const Cart = () => {
@@ -58,7 +45,77 @@ const Cart = () => {
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 🔹 Mutation React Query pour le checkout
+  const { mutateAsync: checkoutIntent, isPending } = useMutation<
+    CheckoutIntentResponse,
+    Error,
+    {
+      items: CartItem[];
+      customer: { name: string; email: string };
+      discountCode?: string;
+      shipping?: ShippingPayload;
+    }
+  >({
+    mutationFn: ({ items, customer, discountCode, shipping }) =>
+      createCheckoutIntentFromCart(items, customer, discountCode, shipping),
+  });
+
+  // ✅ discount preview from backend
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [preview, setPreview] = useState<DiscountPreviewResponse | null>(null);
+
+  // ✅ tous les champs vides (le client remplit)
+  const [shippingInfo, setShippingInfo] = useState({
+    phone: "",
+    address1: "",
+    address2: "",
+    city: "",
+    zip: "",
+    state: "",
+    country: "",
+  });
+
+  const subtotal = useMemo(() => getCartTotal(), [getCartTotal, items]);
+
+  // ✅ live preview (debounced) -> always in sync with DB discounts
+  useEffect(() => {
+    const code = discountCode.trim();
+
+    if (!code) {
+      setPreview(null);
+      return;
+    }
+
+    const t = window.setTimeout(async () => {
+      setPreviewLoading(true);
+      try {
+        const r = await previewDiscount(subtotal, code);
+        setPreview(r);
+      } catch (e) {
+        console.error(e);
+        setPreview({
+          valid: false,
+          appliedCode: null,
+          discountAmount: 0,
+          total: subtotal,
+          reason: "ERROR",
+        });
+      } finally {
+        setPreviewLoading(false);
+      }
+    }, 450);
+
+    return () => window.clearTimeout(t);
+  }, [discountCode, subtotal]);
+
+  const discountAmount = preview?.valid ? preview.discountAmount : 0;
+  const appliedCode = preview?.valid ? preview.appliedCode : null;
+
+  const finalSubtotal = Math.max(subtotal - discountAmount, 0);
+
+  const shipping = subtotal >= 99.9 ? 0 : 9.9;
+  const totalWithDiscount = finalSubtotal + shipping;
 
   const handleCheckout = async () => {
     // 🔎 simple validation côté client
@@ -67,15 +124,24 @@ const Cart = () => {
       return;
     }
 
-    // validation email très simple
     const emailOk = customerEmail.includes("@") && customerEmail.includes(".");
     if (!emailOk) {
       setFormError("Per favore inserisci un indirizzo email valido.");
       return;
     }
 
+    // ✅ shipping minimal
+    if (
+      !shippingInfo.address1.trim() ||
+      !shippingInfo.city.trim() ||
+      !shippingInfo.zip.trim() ||
+      !shippingInfo.country.trim()
+    ) {
+      setFormError("Per favore inserisci indirizzo, città, CAP e paese.");
+      return;
+    }
+
     setFormError(null);
-    setIsSubmitting(true);
 
     try {
       const customer = {
@@ -83,10 +149,23 @@ const Cart = () => {
         email: customerEmail.trim(),
       };
 
+      // ✅ send raw code, backend will validate (and apply from DB)
+      const codeToSend = discountCode.trim() ? discountCode.trim() : undefined;
+
       const { orderId, redirectUrl } = await createCheckoutIntentFromCart(
         items,
         customer,
-        discountCode || undefined
+        codeToSend,
+        {
+          name: customer.name,
+          phone: shippingInfo.phone || undefined,
+          address1: shippingInfo.address1 || undefined,
+          address2: shippingInfo.address2 || undefined,
+          city: shippingInfo.city || undefined,
+          zip: shippingInfo.zip || undefined,
+          state: shippingInfo.state || undefined,
+          country: shippingInfo.country || undefined,
+        },
       );
 
       localStorage.setItem("lastOrderId", orderId);
@@ -94,8 +173,6 @@ const Cart = () => {
     } catch (e) {
       console.error(e);
       alert("Checkout failed. Check console.");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -116,18 +193,8 @@ const Cart = () => {
     );
   }
 
-  // 🧮 Calculs pour le résumé
-  const subtotal = getCartTotal();
-  const { discountAmount, finalSubtotal, appliedCode, isValid } =
-    computeDiscountPreview(subtotal, discountCode);
-
-  // On garde ta logique actuelle de shipping : basée sur le subtotal
-  const shipping = subtotal >= 99.9 ? 0 : 9.9;
-  const totalWithDiscount = finalSubtotal + shipping;
-
   return (
     <div className="container mx-auto px-4 py-8 md:py-12">
-      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl md:text-4xl font-serif font-semibold">
@@ -144,7 +211,6 @@ const Cart = () => {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Cart Items */}
         <div className="lg:col-span-2 space-y-4">
           {items.map((item) => {
             const hasDiscount =
@@ -153,12 +219,9 @@ const Cart = () => {
 
             return (
               <div
-                key={`${item.product.id}-${item.selectedSize ?? "nosize"}-${
-                  item.selectedColor ?? "nocolor"
-                }`}
+                key={`${item.product.id}-${item.selectedSize ?? "nosize"}-${item.selectedColor ?? "nocolor"}`}
                 className="flex gap-4 p-4 border border-border rounded-lg bg-card"
               >
-                {/* Image */}
                 <Link
                   to={`/product/${item.product.handle}`}
                   className="shrink-0"
@@ -170,7 +233,6 @@ const Cart = () => {
                   />
                 </Link>
 
-                {/* Details */}
                 <div className="flex-1 min-w-0">
                   <Link
                     to={`/product/${item.product.handle}`}
@@ -184,7 +246,6 @@ const Cart = () => {
                     </h3>
                   </Link>
 
-                  {/* Size & Color */}
                   {(item.selectedSize || item.selectedColor) && (
                     <p className="text-sm text-muted-foreground mt-1">
                       {item.selectedSize && `Taglia: ${item.selectedSize}`}
@@ -193,7 +254,6 @@ const Cart = () => {
                     </p>
                   )}
 
-                  {/* Price */}
                   <div className="flex items-center gap-2 mt-2">
                     <span className="font-semibold">
                       €{item.product.price.toFixed(2)}
@@ -205,7 +265,6 @@ const Cart = () => {
                     )}
                   </div>
 
-                  {/* Quantity & Remove */}
                   <div className="flex items-center justify-between mt-4">
                     <div className="flex items-center border border-border rounded-md">
                       <button
@@ -214,7 +273,7 @@ const Cart = () => {
                             item.product.id,
                             item.quantity - 1,
                             item.selectedSize,
-                            item.selectedColor
+                            item.selectedColor,
                           )
                         }
                         className="p-2 hover:bg-muted transition-colors"
@@ -231,7 +290,7 @@ const Cart = () => {
                             item.product.id,
                             item.quantity + 1,
                             item.selectedSize,
-                            item.selectedColor
+                            item.selectedColor,
                           )
                         }
                         className="p-2 hover:bg-muted transition-colors"
@@ -245,7 +304,7 @@ const Cart = () => {
                         removeFromCart(
                           item.product.id,
                           item.selectedSize,
-                          item.selectedColor
+                          item.selectedColor,
                         )
                       }
                       className="p-2 text-muted-foreground hover:text-destructive transition-colors"
@@ -260,14 +319,12 @@ const Cart = () => {
           })}
         </div>
 
-        {/* Order Summary */}
         <div className="lg:col-span-1">
           <div className="border border-border rounded-lg p-6 bg-card sticky top-24">
             <h2 className="text-xl font-serif font-semibold mb-4">
               Riepilogo Ordine
             </h2>
 
-            {/* 🧍‍♂️ Customer info */}
             <div className="space-y-3 mb-5">
               <div>
                 <label className="text-sm font-medium" htmlFor="customerName">
@@ -282,6 +339,7 @@ const Cart = () => {
                   className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
                 />
               </div>
+
               <div>
                 <label className="text-sm font-medium" htmlFor="customerEmail">
                   Email
@@ -297,24 +355,142 @@ const Cart = () => {
               </div>
             </div>
 
-            {/* 🔹 Discount code input */}
-            <div className="mb-4">
+            {/* 📦 Shipping info */}
+            <div className="space-y-3 mt-4">
+              <div>
+                <label className="text-sm font-medium">Indirizzo</label>
+                <input
+                  type="text"
+                  value={shippingInfo.address1}
+                  onChange={(e) =>
+                    setShippingInfo((s) => ({ ...s, address1: e.target.value }))
+                  }
+                  placeholder="Via ... Numero ..."
+                  className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">
+                  Indirizzo 2 (opzionale)
+                </label>
+                <input
+                  type="text"
+                  value={shippingInfo.address2}
+                  onChange={(e) =>
+                    setShippingInfo((s) => ({ ...s, address2: e.target.value }))
+                  }
+                  placeholder="Appartamento, Scala, ..."
+                  className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-sm font-medium">Città</label>
+                  <input
+                    type="text"
+                    value={shippingInfo.city}
+                    onChange={(e) =>
+                      setShippingInfo((s) => ({ ...s, city: e.target.value }))
+                    }
+                    placeholder="Milano"
+                    className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">CAP</label>
+                  <input
+                    type="text"
+                    value={shippingInfo.zip}
+                    onChange={(e) =>
+                      setShippingInfo((s) => ({ ...s, zip: e.target.value }))
+                    }
+                    placeholder="20100"
+                    className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-sm font-medium">
+                    Stato (opzionale)
+                  </label>
+                  <input
+                    type="text"
+                    value={shippingInfo.state}
+                    onChange={(e) =>
+                      setShippingInfo((s) => ({ ...s, state: e.target.value }))
+                    }
+                    placeholder="Lombardia"
+                    className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Paese</label>
+                  <input
+                    type="text"
+                    value={shippingInfo.country}
+                    onChange={(e) =>
+                      setShippingInfo((s) => ({
+                        ...s,
+                        country: e.target.value,
+                      }))
+                    }
+                    placeholder="Italy"
+                    className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">
+                  Telefono (opzionale)
+                </label>
+                <input
+                  type="text"
+                  value={shippingInfo.phone}
+                  onChange={(e) =>
+                    setShippingInfo((s) => ({ ...s, phone: e.target.value }))
+                  }
+                  placeholder="+39 ..."
+                  className="mt-1 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
+                />
+              </div>
+            </div>
+
+            {/* 🔹 Discount code input (DB preview) */}
+            <div className="mb-4 mt-4">
               <label className="text-sm font-medium">Codice sconto</label>
               <input
                 type="text"
                 value={discountCode}
                 onChange={(e) => setDiscountCode(e.target.value)}
-                placeholder="MAGIC10"
+                placeholder="MAGIC00"
                 className="mt-2 w-full px-3 py-2 border border-border rounded-md bg-background text-sm"
               />
-              {discountCode && !isValid && (
-                <p className="text-xs text-destructive mt-1">
-                  Codice non valido. Il totale resterà invariato.
+
+              {previewLoading && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Verifica del codice...
                 </p>
               )}
-              {appliedCode && (
+
+              {!previewLoading &&
+                discountCode.trim() &&
+                preview?.valid === false && (
+                  <p className="text-xs text-destructive mt-1">
+                    Codice non valido. Il totale resterà invariato.
+                  </p>
+                )}
+
+              {!previewLoading && preview?.valid && appliedCode && (
                 <p className="text-xs text-emerald-600 mt-1">
-                  Codice {appliedCode} verrà applicato al checkout.
+                  Codice {appliedCode} applicato (-€{discountAmount.toFixed(2)}
+                  ).
                 </p>
               )}
             </div>
@@ -360,9 +536,9 @@ const Cart = () => {
               className="w-full mt-6"
               size="lg"
               onClick={handleCheckout}
-              disabled={isSubmitting}
+              disabled={isPending}
             >
-              {isSubmitting ? "Reindirizzamento..." : "Procedi al Checkout"}
+              {isPending ? "Reindirizzamento..." : "Procedi al Checkout"}
             </Button>
 
             <Link
