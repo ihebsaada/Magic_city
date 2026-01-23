@@ -8,7 +8,9 @@ import {
   getOrderMinimal,
   createStripeCheckout,
   confirmStripePayment,
+  adminUpdateOrder,
 } from "../controllers/orderController";
+import { requireAdminAuth } from "../middlewares/requireAdminAuth";
 
 const router = Router();
 
@@ -20,8 +22,12 @@ router.get("/orders/:id/min", getOrderMinimal);
 router.post("/pay", createStripeCheckout);
 router.get("/pay/confirm", confirmStripePayment);
 
+router.use("/admin", requireAdminAuth);
+
 // admin
 router.get("/admin/orders", adminGetOrders);
 router.get("/admin/orders/:id", adminGetOrderById);
+router.get("/orders", adminGetOrders);
+router.patch("/admin/orders/:id", adminUpdateOrder);
 
 export default router;
