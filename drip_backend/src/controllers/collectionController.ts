@@ -98,7 +98,7 @@ export async function getCollectionProducts(req: Request, res: Response) {
 
     // on mappe vers le format Product attendu par le front
     let products = collection.products.map((pc: any) =>
-      toProductDto(pc.product, handle)
+      toProductDto(pc.product, handle),
     );
 
     if (vendor) {
@@ -182,7 +182,7 @@ export async function adminGetCollections(req: Request, res: Response) {
 // ADMIN: GET /api/admin/collections/:handle
 export async function adminGetCollectionWithProducts(
   req: Request,
-  res: Response
+  res: Response,
 ) {
   try {
     const { handle } = req.params;
@@ -237,5 +237,127 @@ export async function adminGetCollectionWithProducts(
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erreur serveur (admin collection detail)" });
+  }
+}
+
+// ADMIN: POST /api/admin/collections
+export async function adminCreateCollection(req: Request, res: Response) {
+  try {
+    const { title, handle, description } = req.body as {
+      title: string;
+      handle: string;
+      description?: string;
+    };
+
+    if (!title || !handle) {
+      return res.status(400).json({ error: "title & handle are required" });
+    }
+
+    const created = await prisma.collection.create({
+      data: {
+        title,
+        handle,
+        description: description ?? null,
+      },
+    });
+
+    return res.status(201).json(created);
+  } catch (err: any) {
+    console.error(err);
+    // handle unique constraint "handle"
+    return res
+      .status(500)
+      .json({ error: "Erreur serveur (create collection)" });
+  }
+}
+// ADMIN: PATCH /api/admin/collections/:id
+export async function adminUpdateCollection(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const { title, handle, description } = req.body as {
+      title?: string;
+      handle?: string;
+      description?: string | null;
+    };
+
+    const updated = await prisma.collection.update({
+      where: { id },
+      data: {
+        title: title ?? undefined,
+        handle: handle ?? undefined,
+        description: description === undefined ? undefined : description,
+      },
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ error: "Erreur serveur (update collection)" });
+  }
+}
+// Assign product ↔ collection POST /api/admin/collections/:id/products
+export async function adminAddProductToCollection(req: Request, res: Response) {
+  try {
+    const collectionId = Number(req.params.id);
+    const { productId } = req.body as { productId: number };
+
+    if (isNaN(collectionId) || !productId) {
+      return res.status(400).json({ error: "Invalid data" });
+    }
+
+    const link = await prisma.productCollection.create({
+      data: { collectionId, productId },
+    });
+
+    return res.status(201).json(link);
+  } catch (err: any) {
+    console.error(err);
+    // Si déjà lié => unique composite @@id([productId, collectionId])
+    return res.status(409).json({ error: "Already linked" });
+  }
+}
+
+// DELETE /api/admin/collections/:id/products/:productId
+export async function adminRemoveProductFromCollection(
+  req: Request,
+  res: Response,
+) {
+  try {
+    const collectionId = Number(req.params.id);
+    const productId = Number(req.params.productId);
+
+    if (isNaN(collectionId) || isNaN(productId)) {
+      return res.status(400).json({ error: "Invalid data" });
+    }
+
+    await prisma.productCollection.delete({
+      where: { productId_collectionId: { productId, collectionId } },
+    });
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Erreur serveur (unlink product)" });
+  }
+}
+// ADMIN: DELETE /api/admin/collections/:id
+export async function adminDeleteCollection(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+    await prisma.productCollection.deleteMany({ where: { collectionId: id } });
+    await prisma.collection.delete({ where: { id } });
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ error: "Erreur serveur (delete collection)" });
   }
 }

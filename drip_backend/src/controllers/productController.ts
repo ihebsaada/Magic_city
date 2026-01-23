@@ -22,7 +22,7 @@ function toProductDto(p: any, collectionHandleOverride?: string) {
           (sum: number, v: any) =>
             sum +
             (typeof v.inventoryQuantity === "number" ? v.inventoryQuantity : 0),
-          0
+          0,
         )
       : 999;
 
@@ -35,16 +35,16 @@ function toProductDto(p: any, collectionHandleOverride?: string) {
     new Set(
       variants
         .map((v: any) => v.option1 as string | null | undefined)
-        .filter(Boolean)
-    )
+        .filter(Boolean),
+    ),
   ) as string[];
 
   const colors: string[] = Array.from(
     new Set(
       variants
         .map((v: any) => v.option2 as string | null | undefined)
-        .filter(Boolean)
-    )
+        .filter(Boolean),
+    ),
   ) as string[];
 
   return {
@@ -246,5 +246,148 @@ export async function adminGetProductById(req: Request, res: Response) {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Erreur serveur (admin product)" });
+  }
+}
+// POST /api/admin/products
+export async function adminCreateProduct(req: Request, res: Response) {
+  try {
+    const body = req.body as any;
+
+    if (!body?.title || !body?.handle) {
+      return res.status(400).json({ error: "title & handle are required" });
+    }
+
+    const created = await prisma.product.create({
+      data: {
+        title: body.title,
+        handle: body.handle,
+        vendor: body.vendor ?? null,
+        descriptionHtml: body.descriptionHtml ?? null,
+        tags: Array.isArray(body.tags) ? body.tags : [],
+        status: body.status ?? null,
+
+        images:
+          Array.isArray(body.images) && body.images.length
+            ? {
+                create: body.images.map((src: string, idx: number) => ({
+                  src,
+                  position: idx + 1,
+                })),
+              }
+            : undefined,
+
+        collections:
+          Array.isArray(body.collectionIds) && body.collectionIds.length
+            ? {
+                create: body.collectionIds.map((collectionId: number) => ({
+                  collectionId,
+                })),
+              }
+            : undefined,
+      },
+      include: {
+        images: true,
+        collections: { include: { collection: true } },
+      },
+    });
+
+    return res.status(201).json(created);
+  } catch (err: any) {
+    console.error(err);
+    return res.status(500).json({ error: "Erreur serveur (create product)" });
+  }
+}
+// PATCH /api/admin/products/:id
+export async function adminUpdateProduct(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+    const body = req.body as any;
+
+    // si on veut remplacer les images: on deleteMany + create
+    const replaceImages = Array.isArray(body.images) ? body.images : undefined;
+
+    if (replaceImages) {
+      await prisma.productImage.deleteMany({ where: { productId: id } });
+      if (replaceImages.length) {
+        await prisma.productImage.createMany({
+          data: replaceImages.map((src: string, idx: number) => ({
+            src,
+            position: idx + 1,
+            productId: id,
+          })),
+        });
+      }
+    }
+
+    const updated = await prisma.product.update({
+      where: { id },
+      data: {
+        title: body.title ?? undefined,
+        handle: body.handle ?? undefined,
+        vendor: body.vendor ?? undefined,
+        descriptionHtml: body.descriptionHtml ?? undefined,
+        productType: body.productType ?? undefined,
+        status: body.status ?? undefined,
+        tags: body.tags ?? undefined,
+      },
+      include: {
+        images: true,
+        collections: { include: { collection: true } },
+        variants: true, // on peut laisser, mais tu ignores côté admin UI
+      },
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Erreur serveur (update product)" });
+  }
+}
+// DELETE /api/admin/products/:id
+export async function adminDeleteProduct(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+    await prisma.productCollection.deleteMany({ where: { productId: id } });
+    await prisma.product.delete({ where: { id } });
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Erreur serveur (delete product)" });
+  }
+}
+// Assign collections depuis le product PUT /api/admin/products/:id/collections
+export async function adminSetProductCollections(req: Request, res: Response) {
+  try {
+    const productId = Number(req.params.id);
+    if (isNaN(productId)) return res.status(400).json({ error: "Invalid id" });
+
+    const { collectionIds } = req.body as { collectionIds: number[] };
+    if (!Array.isArray(collectionIds)) {
+      return res.status(400).json({ error: "collectionIds must be an array" });
+    }
+
+    await prisma.productCollection.deleteMany({ where: { productId } });
+
+    if (collectionIds.length) {
+      await prisma.productCollection.createMany({
+        data: collectionIds.map((collectionId) => ({
+          productId,
+          collectionId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(500)
+      .json({ error: "Erreur serveur (set product collections)" });
   }
 }
