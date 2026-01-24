@@ -172,16 +172,14 @@ const categories: ProductCategory[] = [
     name: "Scarpe",
     price: 12000,
     icon: <Package className="h-6 w-6" />,
-    image:
-      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=300&fit=crop",
+    image: "/sneaker.png",
   },
   {
     id: "bags",
     name: "Borse",
     price: 18000,
     icon: <ShoppingBag className="h-6 w-6" />,
-    image:
-      "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400&h=300&fit=crop",
+    image: "/bag.png",
   },
   {
     id: "outerwear",
