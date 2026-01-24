@@ -8,8 +8,20 @@ export type ProductCreatePayload = {
   descriptionHtml?: string | null;
   status?: "active" | "draft" | "archived" | null;
   tags?: string[];
-  images?: string[]; // URLs
-  collectionIds?: number[]; // ids
+  images?: string[];
+  collectionIds?: number[];
+
+  // ✅ required to create default variant
+  price: number;
+  compareAtPrice?: number | null;
+  inventoryQuantity?: number | null;
+  sku?: string | null;
+
+  // ✅ optional (since you already added in backend)
+  productType?: string | null;
+  option1Name?: string | null;
+  option2Name?: string | null;
+  option3Name?: string | null;
 };
 
 export type ProductUpdatePayload = {
