@@ -136,7 +136,11 @@ export async function createStripeCheckout(req: Request, res: Response) {
       return res.status(409).json({ error: "Order already paid" });
     }
 
-    const currency = (order.currency || "EUR").toLowerCase();
+    const currency = (
+      process.env.STRIPE_CURRENCY ||
+      order.currency ||
+      "eur"
+    ).toLowerCase();
 
     const amountCents = new Prisma.Decimal(order.total)
       .mul(100)
@@ -161,6 +165,7 @@ export async function createStripeCheckout(req: Request, res: Response) {
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
+      payment_method_types: ["card"],
       success_url,
       cancel_url,
       line_items: [
