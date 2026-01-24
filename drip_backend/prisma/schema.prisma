@@ -72,6 +72,8 @@ model Order {
   orderNumber     Int           @default(autoincrement())
   customerName    String
   customerEmail   String
+  currency String @default("EUR")
+
   total           Decimal       @db.Decimal(10, 2)
 
   originalTotal   Decimal?      @db.Decimal(10, 2)  
@@ -86,6 +88,15 @@ model Order {
   updatedAt       DateTime      @updatedAt
   items           OrderItem[]
   stripeSessionId String?
+  shippingName     String?
+  shippingPhone    String?
+  shippingAddress1 String?
+  shippingAddress2 String?
+  shippingCity     String?
+  shippingZip      String?
+  shippingState    String?
+  shippingCountry  String?
+
 }
 
 model OrderItem {
@@ -116,4 +127,30 @@ enum PaymentStatus {
   PENDING
   PAID
   REFUNDED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Discount {
+  id         String   @id @default(cuid())
+  code       String   @unique
+  type       DiscountType
+  value      Decimal  @db.Decimal(10, 2)
+  usageCount Int      @default(0)
+  usageLimit Int?
+  expiresAt  DateTime?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED
 }
