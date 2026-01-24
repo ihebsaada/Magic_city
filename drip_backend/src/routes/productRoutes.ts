@@ -9,6 +9,7 @@ import {
   adminUpdateProduct,
   adminDeleteProduct,
   adminSetProductCollections,
+  adminUpdateDefaultVariant,
 } from "../controllers/productController";
 import { requireAdminAuth } from "../middlewares/requireAdminAuth";
 
@@ -26,5 +27,6 @@ router.post("/admin/products", adminCreateProduct);
 router.patch("/admin/products/:id", adminUpdateProduct);
 router.delete("/admin/products/:id", adminDeleteProduct);
 router.put("/admin/products/:id/collections", adminSetProductCollections);
+router.patch("/admin/products/:id/default-variant", adminUpdateDefaultVariant);
 
 export default router;
