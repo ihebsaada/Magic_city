@@ -66,3 +66,17 @@ export async function deleteProduct(id: number): Promise<void> {
   // backend: DELETE /api/admin/products/:id
   return apiDelete(`/admin/products/${id}`);
 }
+export type DefaultVariantUpdatePayload = {
+  price?: number;
+  compareAtPrice?: number | null;
+  inventoryQuantity?: number | null;
+  sku?: string | null;
+};
+
+export async function updateDefaultVariant(
+  productId: number,
+  payload: DefaultVariantUpdatePayload,
+) {
+  // backend: PATCH /api/admin/products/:id/default-variant
+  return apiPatch(`/admin/products/${productId}/default-variant`, payload);
+}

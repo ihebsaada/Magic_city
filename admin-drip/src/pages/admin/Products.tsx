@@ -5,6 +5,7 @@ import {
   deleteProduct,
   getProducts,
   updateProduct,
+  updateDefaultVariant,
 } from "@/services/productService";
 import { getCollections } from "@/services/collectionService";
 import type { Product, Collection } from "@/types";
@@ -150,6 +151,10 @@ export default function Products() {
       toast({ title: "Error", description: e?.message ?? "Delete failed" });
     }
   }
+  async function onUpdateDefaultVariant(productId: number, payload: any) {
+    await updateDefaultVariant(productId, payload);
+    await refresh();
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -174,6 +179,7 @@ export default function Products() {
         collections={collections}
         onCreate={onCreate}
         onUpdate={onUpdate}
+        onUpdateDefaultVariant={onUpdateDefaultVariant}
       />
 
       {error && (
