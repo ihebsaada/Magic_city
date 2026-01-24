@@ -32,6 +32,7 @@ type Props = {
 
   collections: Collection[];
 
+  // ✅ CREATE needs pricing/inventory + option names
   onCreate: (payload: {
     title: string;
     handle: string;
@@ -41,8 +42,19 @@ type Props = {
     tags?: string[];
     images?: string[];
     collectionIds?: number[];
+
+    price: number;
+    compareAtPrice?: number | null;
+    inventoryQuantity?: number | null;
+    sku?: string | null;
+
+    productType?: string | null;
+    option1Name?: string | null;
+    option2Name?: string | null;
+    option3Name?: string | null;
   }) => Promise<void>;
 
+  // ✅ updates Product fields (not variant)
   onUpdate: (
     id: number,
     payload: {
@@ -55,6 +67,21 @@ type Props = {
       tags?: string[];
       images?: string[];
       collectionIds?: number[];
+
+      option1Name?: string | null;
+      option2Name?: string | null;
+      option3Name?: string | null;
+    },
+  ) => Promise<void>;
+
+  // ✅ updates default variant (price/stock/sku)
+  onUpdateDefaultVariant: (
+    productId: number,
+    payload: {
+      price?: number;
+      compareAtPrice?: number | null;
+      inventoryQuantity?: number | null;
+      sku?: string | null;
     },
   ) => Promise<void>;
 };
@@ -73,26 +100,66 @@ function normalizeImages(raw: any): string[] {
   return raw.map((i) => (typeof i === "string" ? i : i?.src)).filter(Boolean);
 }
 
+function parseNumberOrNull(v: string): number | null {
+  const s = v.trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseNumberOrUndefined(v: string): number | undefined {
+  const s = v.trim();
+  if (!s) return undefined;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export default function ProductFormDialog(props: Props) {
-  const { open, onOpenChange, mode, product, collections, onCreate, onUpdate } =
-    props;
+  const {
+    open,
+    onOpenChange,
+    mode,
+    product,
+    collections,
+    onCreate,
+    onUpdate,
+    onUpdateDefaultVariant,
+  } = props;
 
   const initial = useMemo(() => {
-    if (mode === "edit" && product) {
+    const p: any = product;
+
+    if (mode === "edit" && p) {
+      const v0 = Array.isArray(p.variants) ? p.variants[0] : null;
+
       return {
-        title: product.title ?? "",
-        handle: product.handle ?? "",
-        vendor: (product as any).vendor ?? "",
-        productType: (product as any).productType ?? "",
-        status: (product as any).status ?? "active",
-        descriptionHtml: (product as any).descriptionHtml ?? "",
-        tags: Array.isArray((product as any).tags) ? (product as any).tags : [],
-        images: normalizeImages((product as any).images),
-        collectionIds: Array.isArray((product as any).collections)
-          ? (product as any).collections.map((c: any) => c.id)
+        title: p.title ?? "",
+        handle: p.handle ?? "",
+        vendor: p.vendor ?? "",
+        productType: p.productType ?? "",
+        status: p.status ?? "active",
+        descriptionHtml: p.descriptionHtml ?? "",
+        tags: Array.isArray(p.tags) ? p.tags : [],
+        images: normalizeImages(p.images),
+        collectionIds: Array.isArray(p.collections)
+          ? p.collections.map((c: any) => c.id)
           : [],
+
+        // ✅ pricing/inventory from default variant
+        price: v0?.price != null ? String(v0.price) : "",
+        compareAtPrice:
+          v0?.compareAtPrice != null ? String(v0.compareAtPrice) : "",
+        sku: v0?.sku ?? "",
+        stock:
+          v0?.inventoryQuantity != null ? String(v0.inventoryQuantity) : "",
+
+        // ✅ option names stored on Product
+        option1Name: p.option1Name ?? "Size",
+        option2Name: p.option2Name ?? "Color",
+        option3Name: p.option3Name ?? "",
       };
     }
+
     return {
       title: "",
       handle: "",
@@ -103,6 +170,15 @@ export default function ProductFormDialog(props: Props) {
       tags: [] as string[],
       images: [] as string[],
       collectionIds: [] as number[],
+
+      price: "",
+      compareAtPrice: "",
+      sku: "",
+      stock: "",
+
+      option1Name: "Size",
+      option2Name: "Color",
+      option3Name: "",
     };
   }, [mode, product]);
 
@@ -121,15 +197,22 @@ export default function ProductFormDialog(props: Props) {
   );
   const [images, setImages] = useState<string[]>(initial.images);
 
-  // UI-only fields (future variants/seo)
+  // pricing / inventory (now REAL)
+  const [price, setPrice] = useState<string>(initial.price);
+  const [compareAtPrice, setCompareAtPrice] = useState<string>(
+    initial.compareAtPrice,
+  );
+  const [sku, setSku] = useState<string>(initial.sku);
+  const [stock, setStock] = useState<string>(initial.stock);
+
+  // option names (saved on Product)
+  const [option1Name, setOption1Name] = useState<string>(initial.option1Name);
+  const [option2Name, setOption2Name] = useState<string>(initial.option2Name);
+  const [option3Name, setOption3Name] = useState<string>(initial.option3Name);
+
+  // UI-only fields (seo)
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDesc, setSeoDesc] = useState("");
-  const [price, setPrice] = useState<string>("");
-  const [compareAtPrice, setCompareAtPrice] = useState<string>("");
-  const [sku, setSku] = useState<string>("");
-  const [stock, setStock] = useState<string>("");
-  const [option1Name, setOption1Name] = useState<string>("Size");
-  const [option2Name, setOption2Name] = useState<string>("Color");
 
   // Helpers inputs
   const [tagInput, setTagInput] = useState("");
@@ -151,21 +234,24 @@ export default function ProductFormDialog(props: Props) {
     setImages(initial.images);
     setCollectionIds(initial.collectionIds);
 
+    // ✅ reset pricing/options from initial
+    setPrice(initial.price);
+    setCompareAtPrice(initial.compareAtPrice);
+    setSku(initial.sku);
+    setStock(initial.stock);
+    setOption1Name(initial.option1Name);
+    setOption2Name(initial.option2Name);
+    setOption3Name(initial.option3Name);
+
     setTagInput("");
     setImageInput("");
     setSaving(false);
 
-    // UI-only reset
+    // SEO reset
     setSeoTitle("");
     setSeoDesc("");
-    setPrice("");
-    setCompareAtPrice("");
-    setSku("");
-    setStock("");
-    setOption1Name("Size");
-    setOption2Name("Color");
 
-    setAutoHandle(!initial.handle); // si edit et handle existe -> ne pas auto
+    setAutoHandle(!initial.handle);
   }, [open, initial]);
 
   // Auto handle from title if user didn't manually edit
@@ -200,7 +286,6 @@ export default function ProductFormDialog(props: Props) {
   const addImage = () => {
     const url = imageInput.trim();
     if (!url) return;
-    // petit check rapide
     if (!/^https?:\/\//i.test(url)) {
       toast({
         title: "Invalid URL",
@@ -243,6 +328,34 @@ export default function ProductFormDialog(props: Props) {
       return;
     }
 
+    // ✅ validate price for create
+    if (mode === "create") {
+      const p = parseNumberOrNull(price);
+      if (p == null || p <= 0) {
+        toast({
+          title: "Price required",
+          description: "Please enter a valid price (> 0).",
+        });
+        return;
+      }
+    }
+
+    // ✅ validate numeric fields if present
+    const stockN = parseNumberOrNull(stock);
+    if (stock.trim() && stockN == null) {
+      toast({ title: "Invalid stock", description: "Stock must be a number." });
+      return;
+    }
+
+    const compareN = parseNumberOrNull(compareAtPrice);
+    if (compareAtPrice.trim() && compareN == null) {
+      toast({
+        title: "Invalid compare price",
+        description: "Compare-at price must be a number.",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       if (mode === "create") {
@@ -251,17 +364,30 @@ export default function ProductFormDialog(props: Props) {
           handle: finalHandle,
           vendor: vendor.trim() || null,
           descriptionHtml: descriptionHtml.trim() || null,
+          productType: productType.trim() || null,
           status,
           tags,
           images,
           collectionIds,
+
+          price: Number(price),
+          compareAtPrice: compareN,
+          inventoryQuantity: stockN,
+          sku: sku.trim() || null,
+
+          option1Name: option1Name.trim() || null,
+          option2Name: option2Name.trim() || null,
+          option3Name: option3Name.trim() || null,
         });
+
         toast({
           title: "Created",
           description: "Product created successfully.",
         });
       } else {
         if (!product?.id) throw new Error("Missing product id");
+
+        // 1) update Product
         await onUpdate(product.id, {
           title: title.trim(),
           handle: finalHandle,
@@ -272,7 +398,20 @@ export default function ProductFormDialog(props: Props) {
           tags,
           images,
           collectionIds,
+
+          option1Name: option1Name.trim() || null,
+          option2Name: option2Name.trim() || null,
+          option3Name: option3Name.trim() || null,
         });
+
+        // 2) update default variant
+        await onUpdateDefaultVariant(product.id, {
+          price: parseNumberOrUndefined(price),
+          compareAtPrice: compareAtPrice.trim() ? compareN : null,
+          inventoryQuantity: stock.trim() ? stockN : null,
+          sku: sku.trim() || null,
+        });
+
         toast({
           title: "Updated",
           description: "Product updated successfully.",
@@ -359,7 +498,6 @@ export default function ProductFormDialog(props: Props) {
                 </div>
               </div>
 
-              {/* productType only really useful on edit too */}
               <div className="space-y-2 mt-4">
                 <Label>Product type</Label>
                 <Input
@@ -539,7 +677,6 @@ export default function ProductFormDialog(props: Props) {
                         </div>
 
                         <div className="mt-3 flex items-center justify-center rounded-md bg-muted p-3">
-                          {/* preview simple */}
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={src}
@@ -567,15 +704,13 @@ export default function ProductFormDialog(props: Props) {
               </div>
             </section>
 
-            {/* PRICING / INVENTORY (UI only for now) */}
+            {/* PRICING / INVENTORY */}
             <section className="rounded-xl border p-4">
-              <div className="mb-3 font-medium">
-                Pricing & Inventory (future variants)
-              </div>
+              <div className="mb-3 font-medium">Pricing & Inventory</div>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Price</Label>
+                  <Label>Price *</Label>
                   <Input
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
@@ -628,13 +763,21 @@ export default function ProductFormDialog(props: Props) {
                 </div>
               </div>
 
+              <div className="space-y-2 mt-4">
+                <Label>Option 3 name</Label>
+                <Input
+                  value={option3Name}
+                  onChange={(e) => setOption3Name(e.target.value)}
+                />
+              </div>
+
               <p className="text-xs text-muted-foreground mt-3">
-                Ces champs sont UI-only tant que tu n’as pas ajouté `variants` +
-                `option1Name/option2Name` en DB et dans `adminCreateProduct`.
+                These fields are saved: price/stock/sku in the default variant,
+                option names in Product.
               </p>
             </section>
 
-            {/* SEO (UI only for now) */}
+            {/* SEO */}
             <section className="rounded-xl border p-4">
               <div className="mb-3 font-medium">SEO (optional)</div>
 
@@ -658,8 +801,7 @@ export default function ProductFormDialog(props: Props) {
               </div>
 
               <p className="text-xs text-muted-foreground mt-3">
-                À sauvegarder plus tard quand tu ajoutes
-                `seoTitle/seoDescription` dans Prisma.
+                Saved later if you add seoTitle/seoDescription in Prisma.
               </p>
             </section>
 
