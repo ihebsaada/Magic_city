@@ -1,0 +1,109 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 20% 98%;
+    --foreground: 30 10% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 30 10% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 30 10% 10%;
+
+    --primary: 30 10% 12%;
+    --primary-foreground: 40 20% 98%;
+
+    --secondary: 35 15% 94%;
+    --secondary-foreground: 30 10% 20%;
+
+    --muted: 35 10% 92%;
+    --muted-foreground: 30 5% 45%;
+
+    --accent: 38 70% 50%;
+    --accent-foreground: 30 10% 10%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 35 15% 88%;
+    --input: 35 15% 88%;
+    --ring: 38 70% 50%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 30 10% 8%;
+    --sidebar-foreground: 40 10% 85%;
+    --sidebar-primary: 38 70% 50%;
+    --sidebar-primary-foreground: 30 10% 10%;
+    --sidebar-accent: 30 10% 15%;
+    --sidebar-accent-foreground: 40 10% 90%;
+    --sidebar-border: 30 10% 18%;
+    --sidebar-ring: 38 70% 50%;
+
+    /* Custom tokens */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 30 10% 10%;
+  }
+
+  .dark {
+    --background: 30 10% 6%;
+    --foreground: 40 10% 92%;
+
+    --card: 30 10% 8%;
+    --card-foreground: 40 10% 92%;
+
+    --popover: 30 10% 8%;
+    --popover-foreground: 40 10% 92%;
+
+    --primary: 40 10% 92%;
+    --primary-foreground: 30 10% 8%;
+
+    --secondary: 30 10% 15%;
+    --secondary-foreground: 40 10% 90%;
+
+    --muted: 30 10% 18%;
+    --muted-foreground: 35 10% 55%;
+
+    --accent: 38 70% 50%;
+    --accent-foreground: 30 10% 10%;
+
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 10% 20%;
+    --input: 30 10% 20%;
+    --ring: 38 70% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
