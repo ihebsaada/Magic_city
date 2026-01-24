@@ -31,8 +31,8 @@ app.use("/api", adminAuthRoutes);
 app.use("/api", collectionRoutes);
 app.use("/api", productRoutes);
 app.use("/api", orderRoutes);
-app.use("/api/admin", adminDiscountRouter);
-// app.use("/api", adminDiscountRouter);
+// app.use("/api/admin", adminDiscountRouter);
+app.use("/api", adminDiscountRouter);
 
 app.get("/api/collections/:handle/brands", getCollectionBrands);
 
