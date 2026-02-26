@@ -68,35 +68,31 @@ model ProductCollection {
 }
 
 model Order {
-  id              String        @id @default(cuid())
-  orderNumber     Int           @default(autoincrement())
-  customerName    String
-  customerEmail   String
-  currency String @default("EUR")
-
-  total           Decimal       @db.Decimal(10, 2)
-
-  originalTotal   Decimal?      @db.Decimal(10, 2)  
-  discountCode    String?                               
-  discountAmount  Decimal?      @db.Decimal(10, 2)  
-
-  status          OrderStatus   @default(PENDING)
-  paymentStatus   PaymentStatus @default(PENDING)
-  sumupCheckoutId String?
-  sumupPaymentId  String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  items           OrderItem[]
-  stripeSessionId String?
-  shippingName     String?
-  shippingPhone    String?
+  id               String        @id @default(cuid())
+  orderNumber      Int           @default(autoincrement())
+  customerName     String
+  customerEmail    String
+  total            Decimal       @db.Decimal(10, 2)
+  status           OrderStatus   @default(PENDING)
+  paymentStatus    PaymentStatus @default(PENDING)
+  sumupCheckoutId  String?
+  sumupPaymentId   String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  stripeSessionId  String?
+  discountAmount   Decimal?      @db.Decimal(10, 2)
+  discountCode     String?
+  originalTotal    Decimal?      @db.Decimal(10, 2)
   shippingAddress1 String?
   shippingAddress2 String?
   shippingCity     String?
-  shippingZip      String?
-  shippingState    String?
   shippingCountry  String?
-
+  shippingName     String?
+  shippingPhone    String?
+  shippingState    String?
+  shippingZip      String?
+  currency         String        @default("EUR")
+  items            OrderItem[]
 }
 
 model OrderItem {
@@ -115,6 +111,27 @@ model OrderItem {
   product       Product? @relation(fields: [productId], references: [id])
 }
 
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Discount {
+  id         String       @id @default(cuid())
+  code       String       @unique
+  type       DiscountType
+  value      Decimal      @db.Decimal(10, 2)
+  usageCount Int          @default(0)
+  usageLimit Int?
+  expiresAt  DateTime?
+  active     Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
 enum OrderStatus {
   PENDING
   PROCESSING
@@ -127,27 +144,6 @@ enum PaymentStatus {
   PENDING
   PAID
   REFUNDED
-}
-
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-model Discount {
-  id         String   @id @default(cuid())
-  code       String   @unique
-  type       DiscountType
-  value      Decimal  @db.Decimal(10, 2)
-  usageCount Int      @default(0)
-  usageLimit Int?
-  expiresAt  DateTime?
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
 }
 
 enum DiscountType {

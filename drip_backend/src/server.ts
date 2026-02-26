@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import morgan from "morgan";
 
 import collectionRoutes from "./routes/collectionRoutes";
 import productRoutes from "./routes/productRoutes";
@@ -12,6 +13,7 @@ import adminDiscountRouter from "./routes/discountRoutes";
 // src/server.ts
 
 const app = express();
+app.use(morgan("dev"));
 
 app.use(cors());
 

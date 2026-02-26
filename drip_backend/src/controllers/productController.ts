@@ -115,22 +115,61 @@ export async function getProducts(req: Request, res: Response) {
   try {
     const { search } = req.query as { search?: string };
 
+    // const productsRaw = await prisma.product.findMany({
+    //   where: search
+    //     ? {
+    //         OR: [
+    //           { title: { contains: search, mode: "insensitive" } },
+    //           { vendor: { contains: search, mode: "insensitive" } },
+    //           { tags: { has: search } },
+    //         ],
+    //       }
+    //     : undefined,
+    //   include: {
+    //     images: true,
+    //     variants: true,
+    //     collections: { include: { collection: true } },
+    //   },
+    //   take: 50,
+    // });
+
     const productsRaw = await prisma.product.findMany({
-      where: search
-        ? {
-            OR: [
-              { title: { contains: search, mode: "insensitive" } },
-              { vendor: { contains: search, mode: "insensitive" } },
-              { tags: { has: search } },
-            ],
-          }
-        : undefined,
-      include: {
-        images: true,
-        variants: true,
-        collections: { include: { collection: true } },
+      take: 24, // 50 is heavy for homepage
+      select: {
+        id: true,
+        handle: true,
+        title: true,
+        vendor: true,
+        descriptionHtml: true,
+        option1Name: true,
+        option2Name: true,
+        option3Name: true,
+
+        images: {
+          select: { src: true },
+          take: 1, // ONLY first image
+          orderBy: { position: "asc" },
+        },
+
+        variants: {
+          select: {
+            price: true,
+            compareAtPrice: true,
+            inventoryQuantity: true,
+            option1: true,
+            option2: true,
+          },
+        },
+
+        collections: {
+          select: {
+            collection: {
+              select: { handle: true },
+            },
+          },
+          take: 1,
+        },
       },
-      take: 50,
     });
 
     res.json(productsRaw.map((p: any) => toProductDto(p)));
