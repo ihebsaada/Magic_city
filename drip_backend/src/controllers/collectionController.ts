@@ -1,166 +1,34 @@
+import {productReadSelect,toProductDto,productSearch,textQuery,validateTextQueryKeys,CatalogueInputError} from "../services/productRead";
 import { Request, Response } from "express";
 import prisma from "../prisma";
 
-// petit helper pour transformer le modèle Prisma en Product pour le front
-function toProductDto(p: any, collectionHandleOverride?: string) {
-  const firstVariant = p.variants?.[0];
-
-  const price =
-    firstVariant && firstVariant.price != null ? Number(firstVariant.price) : 0;
-
-  const compareAtPrice =
-    firstVariant && firstVariant.compareAtPrice != null
-      ? Number(firstVariant.compareAtPrice)
-      : null;
-
-  const stock =
-    firstVariant && typeof firstVariant.inventoryQuantity === "number"
-      ? firstVariant.inventoryQuantity
-      : 0;
-
-  const collectionHandle =
-    collectionHandleOverride ?? p.collections?.[0]?.collection?.handle ?? "";
-
-  return {
-    id: p.id,
-    handle: p.handle,
-    title: p.title,
-    mainImage: p.images?.[0]?.src ?? "",
-    images: (p.images ?? []).map((img: any) => img.src),
-    price,
-    compareAtPrice,
-    isNew: false,
-    isOnSale: compareAtPrice != null && compareAtPrice > price,
-    brand: p.vendor ?? "",
-    description: p.descriptionHtml ?? "",
-    collection: collectionHandle,
-    colors: [] as string[],
-    sizes: [] as string[],
-    stock,
-  };
+export async function getCollectionProducts(req:Request,res:Response) {
+ try {validateTextQueryKeys(req.query);const handle=req.params.handle,vendor=textQuery(req.query.vendor,"vendor"),search=textQuery(req.query.search,"search");
+ const collection=await prisma.collection.findUnique({where:{handle},select:{id:true,handle:true,title:true}});
+ if(!collection)return res.status(404).json({error:"Collection non trouvée"});
+ const products=await prisma.product.findMany({where:{collections:{some:{collectionId:collection.id}},...(vendor?{vendor}:{}),...productSearch(search)},orderBy:{id:"asc"},select:productReadSelect(true,false)});
+ return res.json({collection,products:products.map(p=>toProductDto(p,handle))});
+ }catch(error){if(error instanceof CatalogueInputError)return res.status(400).json({error:error.message});return res.status(500).json({error:"Erreur serveur"});}
+}
+export async function getCollectionBrands(req:Request,res:Response) {
+ try {const groups=await prisma.product.groupBy({by:["vendor"],where:{collections:{some:{collection:{handle:req.params.handle}}},vendor:{not:null}},_count:{id:true},orderBy:{vendor:"asc"}});
+ return res.json(groups.filter(p=>p.vendor).map(p=>({vendor:p.vendor,count:p._count.id})).sort((a,b)=>b.count-a.count));}
+ catch{return res.status(500).json({error:"Error fetching collection brands"});}
 }
 
-// GET /api/collections
-export async function getCollections(req: Request, res: Response) {
-  try {
-    const collections = await prisma.collection.findMany({
-      orderBy: { title: "asc" },
-      include: {
-        _count: {
-          select: { products: true }, // nb de ProductCollection liés
-        },
-      },
-    });
 
-    const data = collections.map((c: any) => ({
-      id: c.id,
-      handle: c.handle,
-      title: c.title,
-      productsCount: c._count.products,
-    }));
 
-    res.json(data);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-}
-
-// GET /api/collections/:handle/products?vendor=Gucci
-export async function getCollectionProducts(req: Request, res: Response) {
-  try {
-    const { handle } = req.params;
-    const { vendor } = req.query as { vendor?: string };
-
-    const collection = await prisma.collection.findUnique({
-      where: { handle },
-      include: {
-        products: {
-          include: {
-            product: {
-              include: {
-                images: true,
-                variants: true,
-                // si tu veux connaître les autres collections du produit :
-                collections: {
-                  include: { collection: true },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!collection) {
-      return res.status(404).json({ error: "Collection non trouvée" });
-    }
-
-    // on mappe vers le format Product attendu par le front
-    let products = collection.products.map((pc: any) =>
-      toProductDto(pc.product, handle),
-    );
-
-    if (vendor) {
-      products = products.filter((p: any) => p.brand === vendor);
-    }
-
-    res.json({
-      collection: {
-        id: collection.id,
-        handle: collection.handle,
-        title: collection.title,
-      },
-      products,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
-}
-
-// GET /api/collections/:handle/brands
-export async function getCollectionBrands(req: Request, res: Response) {
-  try {
-    const { handle } = req.params;
-
-    const products = await prisma.product.findMany({
-      where: {
-        collections: {
-          some: {
-            collection: { handle },
-          },
-        },
-        vendor: { not: null },
-      },
-      select: { vendor: true },
-    });
-
-    const counts = new Map<string, number>();
-
-    for (const p of products) {
-      if (!p.vendor) continue;
-      counts.set(p.vendor, (counts.get(p.vendor) ?? 0) + 1);
-    }
-
-    const result = Array.from(counts.entries())
-      .map(([vendor, count]) => ({ vendor, count }))
-      .sort((a, b) => b.count - a.count);
-
-    res.json(result);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Error fetching collection brands" });
-  }
+export async function getCollections(_req:Request,res:Response){
+ try{const rows=await prisma.collection.findMany({orderBy:{title:"asc"},select:{id:true,handle:true,title:true,_count:{select:{products:true}}}});
+ return res.json(rows.map(c=>({id:c.id,handle:c.handle,title:c.title,productsCount:c._count.products})));}
+ catch{return res.status(500).json({error:"Erreur serveur"});}
 }
 
 // ADMIN: GET /api/admin/collections
 export async function adminGetCollections(req: Request, res: Response) {
   try {
     const collections = await prisma.collection.findMany({
-      include: {
-        products: true,
-      },
+      select: {id:true,handle:true,title:true,description:true,_count:{select:{products:true}}},
       orderBy: { id: "asc" },
     });
 
@@ -169,12 +37,12 @@ export async function adminGetCollections(req: Request, res: Response) {
       handle: c.handle,
       title: c.title,
       description: c.description ?? undefined,
-      productsCount: c.products.length,
+      productsCount: c._count.products,
     }));
 
     res.json(mapped);
   } catch (err) {
-    console.error(err);
+    console.error("API operation failed");
     res.status(500).json({ error: "Erreur serveur (admin collections)" });
   }
 }
@@ -194,8 +62,8 @@ export async function adminGetCollectionWithProducts(
           include: {
             product: {
               include: {
-                images: true,
-                variants: true,
+                images: {orderBy:[{position:"asc"},{id:"asc"}]},
+                variants: {orderBy:{id:"asc"}},
                 collections: {
                   include: { collection: true },
                 },
@@ -235,7 +103,7 @@ export async function adminGetCollectionWithProducts(
 
     res.json(result);
   } catch (err) {
-    console.error(err);
+    console.error("API operation failed");
     res.status(500).json({ error: "Erreur serveur (admin collection detail)" });
   }
 }
@@ -263,7 +131,7 @@ export async function adminCreateCollection(req: Request, res: Response) {
 
     return res.status(201).json(created);
   } catch (err: any) {
-    console.error(err);
+    console.error("API operation failed");
     // handle unique constraint "handle"
     return res
       .status(500)
@@ -293,7 +161,7 @@ export async function adminUpdateCollection(req: Request, res: Response) {
 
     return res.json(updated);
   } catch (err) {
-    console.error(err);
+    console.error("API operation failed");
     return res
       .status(500)
       .json({ error: "Erreur serveur (update collection)" });
@@ -315,7 +183,7 @@ export async function adminAddProductToCollection(req: Request, res: Response) {
 
     return res.status(201).json(link);
   } catch (err: any) {
-    console.error(err);
+    console.error("API operation failed");
     // Si déjà lié => unique composite @@id([productId, collectionId])
     return res.status(409).json({ error: "Already linked" });
   }
@@ -340,7 +208,7 @@ export async function adminRemoveProductFromCollection(
 
     return res.status(204).send();
   } catch (err) {
-    console.error(err);
+    console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (unlink product)" });
   }
 }
@@ -355,7 +223,7 @@ export async function adminDeleteCollection(req: Request, res: Response) {
 
     return res.status(204).send();
   } catch (err) {
-    console.error(err);
+    console.error("API operation failed");
     return res
       .status(500)
       .json({ error: "Erreur serveur (delete collection)" });

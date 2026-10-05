@@ -1,366 +1,48 @@
+import {GuestAccessError} from "../services/guestOrderAccess";
 // src/controllers/orderController.ts
 import { Request, Response } from "express";
 import prisma from "../prisma";
-import Stripe from "stripe";
-import { Prisma } from "@prisma/client";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-  apiVersion: process.env.STRIPE_API_VERSION as Stripe.LatestApiVersion,
-});
+import {createIdempotentOrder,IdempotencyError} from "../services/orderIdempotency";
+import {reserveLegacyOrder} from "../services/legacyReservation";
+import {ReservationError} from "../services/reservations";
+import {reconcileReservation} from "../services/reservationReconciliation";
+import {OrderInputError} from "../services/orderPricing";
+import {startPayment,reconcilePayment,PaymentError,updateOrderState} from "../services/paymentService";
 
 // ======================================================
 
-type ShippingPayload = {
-  name?: string;
-  phone?: string;
-  address1?: string;
-  address2?: string;
-  city?: string;
-  zip?: string;
-  state?: string;
-  country?: string;
-};
-
-function pickVariant(p: any, selectedSize?: string, selectedColor?: string) {
-  const variants = p.variants ?? [];
-  const match = variants.find((v: any) => {
-    const okSize = selectedSize ? v.option1 === selectedSize : true;
-    const okColor = selectedColor ? v.option2 === selectedColor : true;
-    return okSize && okColor;
-  });
-
-  return match ?? variants[0] ?? null;
-}
-
-function normCode(code?: string) {
-  return (code ?? "").trim().toUpperCase();
-}
-
-function toNumberSafe(v: any) {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-// ✅ Discount from DB (Prisma Discount)
-async function applyDiscountFromDb(subtotal: number, discountCode?: string) {
-  const safeSubtotal = Math.max(toNumberSafe(subtotal), 0);
-  const code = normCode(discountCode);
-
-  if (!code) {
-    return {
-      originalTotal: safeSubtotal,
-      discountAmount: 0,
-      total: safeSubtotal,
-      appliedCode: null as string | null,
-    };
-  }
-
-  const d = await prisma.discount.findUnique({ where: { code } });
-
-  // not found or inactive
-  if (!d || !d.active) {
-    return {
-      originalTotal: safeSubtotal,
-      discountAmount: 0,
-      total: safeSubtotal,
-      appliedCode: null,
-    };
-  }
-
-  // expired
-  if (d.expiresAt && d.expiresAt.getTime() < Date.now()) {
-    return {
-      originalTotal: safeSubtotal,
-      discountAmount: 0,
-      total: safeSubtotal,
-      appliedCode: null,
-    };
-  }
-
-  // limit reached
-  if (d.usageLimit != null && d.usageCount >= d.usageLimit) {
-    return {
-      originalTotal: safeSubtotal,
-      discountAmount: 0,
-      total: safeSubtotal,
-      appliedCode: null,
-    };
-  }
-
-  const value = toNumberSafe(d.value);
-
-  // invalid value => ignore
-  if (value <= 0) {
-    return {
-      originalTotal: safeSubtotal,
-      discountAmount: 0,
-      total: safeSubtotal,
-      appliedCode: null,
-    };
-  }
-
-  const discountAmount =
-    d.type === "PERCENTAGE" ? (safeSubtotal * value) / 100 : value;
-
-  const total = Math.max(safeSubtotal - discountAmount, 0);
-
-  return {
-    originalTotal: safeSubtotal,
-    discountAmount,
-    total,
-    appliedCode: code,
-  };
-}
-
 // ✅ STRIPE CHECKOUT: second shop sends only {orderId}
-export async function createStripeCheckout(req: Request, res: Response) {
-  try {
-    const { orderId } = req.body as { orderId: string };
-    if (!orderId) return res.status(400).json({ error: "Missing orderId" });
 
-    const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      select: {
-        id: true,
-        orderNumber: true,
-        total: true,
-        currency: true,
-        customerEmail: true,
-        paymentStatus: true,
-      },
-    });
-
-    if (!order) return res.status(404).json({ error: "Order not found" });
-
-    if (order.paymentStatus === "PAID") {
-      return res.status(409).json({ error: "Order already paid" });
-    }
-
-    const currency = (
-      process.env.STRIPE_CURRENCY ||
-      order.currency ||
-      "eur"
-    ).toLowerCase();
-
-    const amountCents = new Prisma.Decimal(order.total)
-      .mul(100)
-      .toDecimalPlaces(0)
-      .toNumber();
-
-    if (!amountCents || amountCents < 50) {
-      return res.status(400).json({ error: "Invalid order total" });
-    }
-
-    const successTemplate = process.env.STRIPE_SUCCESS_URL || "";
-    const cancelTemplate = process.env.STRIPE_CANCEL_URL || "";
-
-    if (!successTemplate || !cancelTemplate) {
-      return res.status(500).json({
-        error: "Stripe success/cancel URLs not configured",
-      });
-    }
-
-    const success_url = successTemplate.replace("{ORDER_ID}", order.id);
-    const cancel_url = cancelTemplate.replace("{ORDER_ID}", order.id);
-
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      payment_method_types: ["card"],
-      success_url,
-      cancel_url,
-      line_items: [
-        {
-          quantity: 1,
-          price_data: {
-            currency,
-            unit_amount: amountCents,
-            product_data: {
-              name: `Magic City Drip Order ${order.orderNumber ?? ""}`.trim(),
-            },
-          },
-        },
-      ],
-      metadata: { order_id: order.id },
-      customer_email: order.customerEmail,
-    });
-
-    await prisma.order.update({
-      where: { id: order.id },
-      data: { stripeSessionId: session.id },
-    });
-
-    return res.json({ url: session.url, sessionId: session.id });
-  } catch (err) {
-    console.error(err);
-    return res
-      .status(500)
-      .json({ error: "Erreur serveur (createStripeCheckout)" });
-  }
+function paymentFailure(res: Response,error: unknown) {
+ const status=(error instanceof PaymentError || error instanceof ReservationError)?error.status:503;
+ if(status===503) res.setHeader("Retry-After","2");
+ return res.status(status).json({error:(error instanceof PaymentError || error instanceof ReservationError)?error.code:"PAYMENT_RETRY"});
 }
-
-// ✅ Confirm payment
-export async function confirmStripePayment(req: Request, res: Response) {
-  try {
-    const sessionId = String(req.query.session_id || "");
-    if (!sessionId)
-      return res.status(400).json({ error: "Missing session_id" });
-
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    const orderId = session.metadata?.order_id;
-    if (!orderId) {
-      return res
-        .status(400)
-        .json({ error: "Missing order_id in session metadata" });
-    }
-
-    if (session.payment_status !== "paid") {
-      return res.status(200).json({
-        paid: false,
-        payment_status: session.payment_status,
-        orderId,
-      });
-    }
-
-    const updated = await prisma.order.update({
-      where: { id: orderId },
-      data: {
-        paymentStatus: "PAID",
-        status: "PROCESSING",
-        stripeSessionId: session.id,
-      },
-      select: {
-        id: true,
-        orderNumber: true,
-        paymentStatus: true,
-        status: true,
-        total: true,
-        currency: true,
-        discountCode: true,
-      },
-    });
-
-    // ✅ increment usageCount only after payment success
-    if (updated.discountCode) {
-      try {
-        await prisma.discount.update({
-          where: { code: updated.discountCode },
-          data: { usageCount: { increment: 1 } },
-        });
-      } catch (e) {
-        console.warn("Discount usageCount increment failed:", e);
-      }
-    }
-
-    return res.json({ paid: true, order: updated });
-  } catch (err) {
-    console.error(err);
-    return res
-      .status(500)
-      .json({ error: "Erreur serveur (confirmStripePayment)" });
-  }
+export async function createStripeCheckout(req:Request,res:Response) {
+ try {return res.json(await startPayment(req.body?.orderId));}
+ catch(error) {return paymentFailure(res,error);}
 }
-
-// ✅ Shop principal creates order
+export async function confirmStripePayment(req:Request,res:Response) {
+ if(typeof req.query.session_id!=="string" || !req.query.session_id || req.query.session_id.length>255)
+   return res.status(400).json({error:"Missing session_id"});
+ try {return res.json(await reconcilePayment(req.query.session_id));}
+ catch(error) {return paymentFailure(res,error);}
+}
 export async function createCheckoutIntent(req: Request, res: Response) {
   try {
-    const { customerName, customerEmail, items, discountCode, shipping } =
-      req.body as {
-        customerName: string;
-        customerEmail: string;
-        items: {
-          productId: number;
-          quantity: number;
-          selectedSize?: string;
-          selectedColor?: string;
-        }[];
-        discountCode?: string;
-        shipping?: ShippingPayload;
-      };
-
-    if (!customerName || !customerEmail || !items?.length) {
-      return res.status(400).json({ error: "Missing data" });
-    }
-
-    const currency = (process.env.STRIPE_CURRENCY || "eur").toUpperCase();
-
-    const productIds = items.map((i) => i.productId);
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      include: { images: true, variants: true },
-    });
-
-    const productMap = new Map(products.map((p) => [p.id, p]));
-
-    let subtotal = 0;
-
-    const orderItemsData = items.map((item) => {
-      const p = productMap.get(item.productId);
-      if (!p) throw new Error(`Product ${item.productId} not found`);
-
-      const variant = pickVariant(p, item.selectedSize, item.selectedColor);
-      const unitPrice =
-        variant && variant.price != null ? Number(variant.price) : 0;
-
-      subtotal += unitPrice * item.quantity;
-
-      return {
-        productId: p.id,
-        productTitle: p.title,
-        productHandle: p.handle,
-        mainImage: p.images?.[0]?.src ?? null,
-        quantity: item.quantity,
-        unitPrice,
-        selectedSize: item.selectedSize ?? null,
-        selectedColor: item.selectedColor ?? null,
-        variantSku: variant?.sku ?? null,
-      };
-    });
-
-    // ✅ apply discount from DB
-    const { originalTotal, discountAmount, total, appliedCode } =
-      await applyDiscountFromDb(subtotal, discountCode);
-
-    const order = await prisma.order.create({
-      data: {
-        customerName,
-        customerEmail,
-        currency,
-
-        total,
-        originalTotal,
-        discountCode: appliedCode, // null if invalid
-        discountAmount,
-
-        shippingName: shipping?.name ?? customerName,
-        shippingPhone: shipping?.phone ?? null,
-        shippingAddress1: shipping?.address1 ?? null,
-        shippingAddress2: shipping?.address2 ?? null,
-        shippingCity: shipping?.city ?? null,
-        shippingZip: shipping?.zip ?? null,
-        shippingState: shipping?.state ?? null,
-        shippingCountry: shipping?.country ?? null,
-
-        status: "PENDING",
-        paymentStatus: "PENDING",
-        items: { create: orderItemsData },
-      },
-      select: { id: true },
-    });
-
-    const base = process.env.CHECKOUT_APP_URL || "http://localhost:5173";
-    const redirectUrl = `${base}/checkout-landing?orderId=${order.id}`;
-
-    return res.status(201).json({ orderId: order.id, redirectUrl });
+    const result = await createIdempotentOrder(req.body, "intent", req.headers["idempotency-key"],req.headers["order-access-token"]);
+    res.setHeader("Idempotency-Replayed", String(result.replayed));
+    return res.status(result.status).json(result.response);
   } catch (err) {
-    console.error(err);
-    return res
-      .status(500)
-      .json({ error: "Erreur serveur (createCheckoutIntent)" });
+    if (err instanceof GuestAccessError) return res.status(err.status).json({error:err.code});
+    if (err instanceof ReservationError) return paymentFailure(res,err);
+    if (err instanceof IdempotencyError) return res.status(err.status).json({ error: err.code });
+    if (err instanceof OrderInputError) return res.status(400).json({ error: err.message });
+    console.error("Order operation failed");
+    return res.status(500).json({ error: "Erreur serveur (createCheckoutIntent)" });
   }
 }
 
-// ✅ second shop calls this: returns only minimal data
 export async function getOrderMinimal(req: Request, res: Response) {
   try {
     const { id } = req.params;
@@ -388,7 +70,7 @@ export async function getOrderMinimal(req: Request, res: Response) {
       createdAt: order.createdAt,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Order operation failed");
     return res.status(500).json({ error: "Erreur serveur (getOrderMinimal)" });
   }
 }
@@ -416,7 +98,7 @@ export async function adminGetOrders(req: Request, res: Response) {
 
     res.json(mapped);
   } catch (err) {
-    console.error(err);
+    console.error("Order operation failed");
     res.status(500).json({ error: "Erreur serveur (adminGetOrders)" });
   }
 }
@@ -480,7 +162,7 @@ export async function adminGetOrderById(req: Request, res: Response) {
       })),
     });
   } catch (err) {
-    console.error(err);
+    console.error("Order operation failed");
     return res
       .status(500)
       .json({ error: "Erreur serveur (adminGetOrderById)" });
@@ -490,91 +172,15 @@ export async function adminGetOrderById(req: Request, res: Response) {
 // ✅ OPTIONAL: create order directly (if you still use /orders)
 export async function createOrder(req: Request, res: Response) {
   try {
-    const { customerName, customerEmail, items, discountCode, shipping } =
-      req.body as {
-        customerName: string;
-        customerEmail: string;
-        items: {
-          productId: number;
-          quantity: number;
-          selectedSize?: string;
-          selectedColor?: string;
-        }[];
-        discountCode?: string;
-        shipping?: ShippingPayload;
-      };
-
-    if (!customerName || !customerEmail || !items?.length) {
-      return res.status(400).json({ error: "Missing data" });
-    }
-
-    const currency = (process.env.STRIPE_CURRENCY || "eur").toUpperCase();
-
-    const productIds = items.map((i) => i.productId);
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds } },
-      include: { images: true, variants: true },
-    });
-
-    const productMap = new Map(products.map((p) => [p.id, p]));
-
-    let subtotal = 0;
-
-    const orderItemsData = items.map((item) => {
-      const p = productMap.get(item.productId);
-      if (!p) throw new Error(`Product ${item.productId} not found`);
-
-      const variant = pickVariant(p, item.selectedSize, item.selectedColor);
-      const unitPrice =
-        variant && variant.price != null ? Number(variant.price) : 0;
-
-      subtotal += unitPrice * item.quantity;
-
-      return {
-        productId: p.id,
-        productTitle: p.title,
-        productHandle: p.handle,
-        mainImage: p.images?.[0]?.src ?? null,
-        quantity: item.quantity,
-        unitPrice,
-        selectedSize: item.selectedSize ?? null,
-        selectedColor: item.selectedColor ?? null,
-        variantSku: variant?.sku ?? null,
-      };
-    });
-
-    const { originalTotal, discountAmount, total, appliedCode } =
-      await applyDiscountFromDb(subtotal, discountCode);
-
-    const order = await prisma.order.create({
-      data: {
-        customerName,
-        customerEmail,
-        currency,
-        total,
-        originalTotal,
-        discountCode: appliedCode,
-        discountAmount,
-
-        shippingName: shipping?.name ?? customerName,
-        shippingPhone: shipping?.phone ?? null,
-        shippingAddress1: shipping?.address1 ?? null,
-        shippingAddress2: shipping?.address2 ?? null,
-        shippingCity: shipping?.city ?? null,
-        shippingZip: shipping?.zip ?? null,
-        shippingState: shipping?.state ?? null,
-        shippingCountry: shipping?.country ?? null,
-
-        status: "PENDING",
-        paymentStatus: "PENDING",
-        items: { create: orderItemsData },
-      },
-      include: { items: true },
-    });
-
-    return res.status(201).json(order);
+    const result = await createIdempotentOrder(req.body, "orders", req.headers["idempotency-key"],req.headers["order-access-token"]);
+    res.setHeader("Idempotency-Replayed", String(result.replayed));
+    return res.status(result.status).json(result.response);
   } catch (err) {
-    console.error(err);
+    if (err instanceof GuestAccessError) return res.status(err.status).json({error:err.code});
+    if (err instanceof ReservationError) return paymentFailure(res,err);
+    if (err instanceof IdempotencyError) return res.status(err.status).json({ error: err.code });
+    if (err instanceof OrderInputError) return res.status(400).json({ error: err.message });
+    console.error("Order operation failed");
     return res.status(500).json({ error: "Erreur serveur (createOrder)" });
   }
 }
@@ -591,18 +197,23 @@ export async function adminUpdateOrder(req: Request, res: Response) {
       return res.status(400).json({ error: "Nothing to update" });
     }
 
-    const updated = await prisma.order.update({
-      where: { id },
-      data: {
-        ...(status ? { status: status as any } : {}),
-        ...(paymentStatus ? { paymentStatus: paymentStatus as any } : {}),
-      },
-      select: { id: true },
-    });
+    const updated = await updateOrderState(id,status,paymentStatus);
 
+    if(status==="CANCELLED")await reconcileReservation(id).catch(()=>{});
     return res.json({ ok: true, id: updated.id });
   } catch (err) {
-    console.error(err);
+    if (err instanceof PaymentError || err instanceof ReservationError) return paymentFailure(res,err);
+    console.error("Order operation failed");
     return res.status(500).json({ error: "Erreur serveur (adminUpdateOrder)" });
   }
+}
+
+export async function adminReconcileReservation(req:Request,res:Response) {
+ try {return res.json(await reconcileReservation(req.params.id));}
+ catch(error){return paymentFailure(res,error);}
+}
+
+export async function adminReserveLegacy(req:Request,res:Response) {
+ try{return res.json(await reserveLegacyOrder(req.params.id));}
+ catch(error){return paymentFailure(res,error);}
 }

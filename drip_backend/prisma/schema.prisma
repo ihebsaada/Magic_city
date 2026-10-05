@@ -34,20 +34,26 @@ model ProductImage {
   position  Int?
   productId Int
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, position, id])
 }
 
 model Variant {
-  id                Int      @id @default(autoincrement())
-  sku               String?  @unique
+  reservedQuantity  Int                    @default(0)
+  reservations      StockReservationItem[]
+  id                Int                    @id @default(autoincrement())
+  sku               String?                @unique
   title             String?
-  price             Decimal? @db.Decimal(10, 2)
-  compareAtPrice    Decimal? @db.Decimal(10, 2)
-  inventoryQuantity Int?     @default(999)
+  price             Decimal?               @db.Decimal(10, 2)
+  compareAtPrice    Decimal?               @db.Decimal(10, 2)
+  inventoryQuantity Int?                   @default(999)
   option1           String?
   option2           String?
   option3           String?
   productId         Int
-  product           Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product           Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, id])
 }
 
 model Collection {
@@ -68,31 +74,37 @@ model ProductCollection {
 }
 
 model Order {
-  id               String        @id @default(cuid())
-  orderNumber      Int           @default(autoincrement())
-  customerName     String
-  customerEmail    String
-  total            Decimal       @db.Decimal(10, 2)
-  status           OrderStatus   @default(PENDING)
-  paymentStatus    PaymentStatus @default(PENDING)
-  sumupCheckoutId  String?
-  sumupPaymentId   String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  stripeSessionId  String?
-  discountAmount   Decimal?      @db.Decimal(10, 2)
-  discountCode     String?
-  originalTotal    Decimal?      @db.Decimal(10, 2)
-  shippingAddress1 String?
-  shippingAddress2 String?
-  shippingCity     String?
-  shippingCountry  String?
-  shippingName     String?
-  shippingPhone    String?
-  shippingState    String?
-  shippingZip      String?
-  currency         String        @default("EUR")
-  items            OrderItem[]
+  guestAccessTokens   GuestOrderAccess[]
+  guestRecoveries     GuestOrderRecovery[]
+  reservation         OrderReservation?
+  id                  String               @id @default(cuid())
+  orderNumber         Int                  @default(autoincrement())
+  customerName        String
+  customerEmail       String
+  total               Decimal              @db.Decimal(10, 2)
+  status              OrderStatus          @default(PENDING)
+  paymentStatus       PaymentStatus        @default(PENDING)
+  sumupCheckoutId     String?
+  sumupPaymentId      String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  stripeSessionId     String?
+  discountAmount      Decimal?             @db.Decimal(10, 2)
+  discountCode        String?
+  originalTotal       Decimal?             @db.Decimal(10, 2)
+  shippingAddress1    String?
+  shippingAddress2    String?
+  shippingCity        String?
+  shippingCountry     String?
+  shippingName        String?
+  shippingPhone       String?
+  shippingState       String?
+  shippingZip         String?
+  currency            String               @default("EUR")
+  items               OrderItem[]
+  idempotency         OrderIdempotency?
+  paymentAttempts     PaymentAttempt[]
+  paymentFinalization PaymentFinalization?
 }
 
 model OrderItem {
@@ -120,16 +132,18 @@ model User {
 }
 
 model Discount {
-  id         String       @id @default(cuid())
-  code       String       @unique
-  type       DiscountType
-  value      Decimal      @db.Decimal(10, 2)
-  usageCount Int          @default(0)
-  usageLimit Int?
-  expiresAt  DateTime?
-  active     Boolean      @default(true)
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  reservedUses Int                @default(0)
+  reservations OrderReservation[]
+  id           String             @id @default(cuid())
+  code         String             @unique
+  type         DiscountType
+  value        Decimal            @db.Decimal(10, 2)
+  usageCount   Int                @default(0)
+  usageLimit   Int?
+  expiresAt    DateTime?
+  active       Boolean            @default(true)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 }
 
 enum OrderStatus {
@@ -149,4 +163,111 @@ enum PaymentStatus {
 enum DiscountType {
   PERCENTAGE
   FIXED
+}
+
+model OrderIdempotency {
+  keyHash     String   @id @db.Char(64)
+  requestHash String   @db.Char(64)
+  endpoint    String
+  orderId     String?  @unique
+  response    Json?
+  statusCode  Int      @default(201)
+  createdAt   DateTime @default(now())
+  replayUntil DateTime
+  order       Order?   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+}
+
+model PaymentAttempt {
+  id             String    @id
+  orderId        String
+  generation     Int
+  idempotencyKey String    @unique
+  request        Json
+  amountCents    Int
+  currency       String
+  state          String    @default("CREATING")
+  sessionId      String?   @unique
+  sessionUrl     String?
+  leaseOwner     String?
+  leaseUntil     DateTime?
+  createdAt      DateTime  @default(now())
+  order          Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, generation])
+}
+
+model PaymentFinalization {
+  orderId   String   @id
+  sessionId String   @unique
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+}
+
+model StripeEvent {
+  id        String   @id
+  type      String
+  sessionId String
+  createdAt DateTime @default(now())
+}
+
+model OrderReservation {
+  orderId              String                 @id
+  state                String                 @default("ACTIVE")
+  expiresAt            DateTime
+  discountId           String?
+  reconciliationReason String?
+  createdAt            DateTime               @default(now())
+  order                Order                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  discount             Discount?              @relation(fields: [discountId], references: [id], onDelete: Restrict)
+  items                StockReservationItem[]
+
+  @@index([state, expiresAt])
+}
+
+model StockReservationItem {
+  orderId     String
+  variantId   Int
+  quantity    Int
+  reservation OrderReservation @relation(fields: [orderId], references: [orderId], onDelete: Restrict)
+  variant     Variant          @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@id([orderId, variantId])
+  @@index([variantId])
+}
+
+model GuestOrderAccess {
+  handoff OrderHandoff?
+  tokenHash String    @id @db.Char(64)
+  orderId   String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+}
+
+model GuestOrderRecovery {
+  tokenHash String    @id @db.Char(64)
+  orderId   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+}
+
+model OrderHandoff {
+ id String @id
+ expectedOrderId String
+ recipientHash String @unique @db.Char(64)
+ origin String
+ expiresAt DateTime
+ approvedAt DateTime?
+ redeemedAt DateTime?
+ revokedAt DateTime?
+ createdAt DateTime @default(now())
+ recipient GuestOrderAccess @relation(fields:[recipientHash],references:[tokenHash],onDelete:Restrict)
+ @@index([expectedOrderId,createdAt])
 }

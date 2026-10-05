@@ -1,3 +1,4 @@
+import {getCatalogue} from "../controllers/catalogueController";
 import { Router } from "express";
 import {
   getProducts,
@@ -15,6 +16,7 @@ import { requireAdminAuth } from "../middlewares/requireAdminAuth";
 
 const router = Router();
 
+router.get("/catalog/products",getCatalogue);
 router.get("/products", getProducts);
 router.get("/products/handle/:handle", getProductByHandle);
 router.get("/products/:id", getProductById);

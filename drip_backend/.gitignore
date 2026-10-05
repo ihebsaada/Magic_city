@@ -3,3 +3,23 @@ node_modules
 .env
 
 /generated/prisma
+
+# Local TypeScript build output
+dist/
+
+# Isolated synthetic PostgreSQL test clusters
+tests/.pg-lot4-*/
+
+tests/.render-prep/
+tests/.pg-render18-diagnostic-*/
+
+# Generated validation outputs (not test inputs)
+tests/*.log
+tests/*RESULTS*.json
+tests/catalog-baseline.json
+tests/catalog-index-study.json
+tests/catalog-performance.json
+
+# Real environment files must never be committed
+.env.*
+!.env.staging.example

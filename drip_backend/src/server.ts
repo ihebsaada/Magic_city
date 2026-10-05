@@ -1,45 +1,9 @@
-import "dotenv/config";
-import express from "express";
-import cors from "cors";
-import morgan from "morgan";
-
-import collectionRoutes from "./routes/collectionRoutes";
-import productRoutes from "./routes/productRoutes";
-import { stripeWebhook } from "./controllers/stripeWebhookController";
-import { getCollectionBrands } from "./controllers/collectionController";
-import orderRoutes from "./routes/orderRoutes";
-import adminAuthRoutes from "./routes/adminAuthRoutes";
-import adminDiscountRouter from "./routes/discountRoutes";
-// src/server.ts
-
-const app = express();
-app.use(morgan("dev"));
-
-app.use(cors());
-
-app.post(
-  "/api/stripe/webhook",
-  express.raw({ type: "application/json" }),
-  stripeWebhook,
-);
-
-app.use(express.json());
-
-// Juste pour tester
-app.get("/", (_req, res) => {
-  res.send("Magic City Drip API 🧥👟👜");
-});
-app.use("/api", adminAuthRoutes);
-app.use("/api", collectionRoutes);
-app.use("/api", productRoutes);
-app.use("/api", orderRoutes);
-// app.use("/api/admin", adminDiscountRouter);
-app.use("/api", adminDiscountRouter);
-
-app.get("/api/collections/:handle/brands", getCollectionBrands);
-
-const PORT = process.env.PORT || 4000;
-
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+﻿import "dotenv/config";
+import {runtimeConfiguration} from "./runtimeConfiguration";
+// Validate before importing modules that construct Prisma or Stripe clients.
+try {
+ const config=runtimeConfiguration();
+ const {createApp}=require("./app") as typeof import("./app");
+ const app=createApp(config.staging?{logging:false,orderAccessRequired:true,handoffOrigins:config.handoffOrigins,allowedOrigins:config.origins,staging:true}:{});
+ app.listen(config.port,"0.0.0.0",()=>console.log(`Server listening on port ${config.port}`)).on("error",()=>{console.error("Server startup failed");process.exitCode=1;});
+}catch{console.error("Server configuration invalid; startup refused");process.exitCode=1;}
