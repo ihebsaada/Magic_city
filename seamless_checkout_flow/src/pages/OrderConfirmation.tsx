@@ -1,3 +1,4 @@
+import {storeUrl} from "@/lib/storeNavigation";
 import {CheckCircle,Loader2,AlertCircle} from "lucide-react";
 import {Card,CardContent,CardHeader,CardTitle} from "@/components/ui/card";
 import {Separator} from "@/components/ui/separator";
@@ -97,7 +98,7 @@ export default function OrderConfirmation(){
                 {order && <div className="flex justify-between items-center"><span className="text-lg font-medium">Totale pagato</span><span className="text-2xl font-bold font-mono">{formatMoney(order.total,order.currency)}</span></div>}
                 <Button
                   onClick={() => {
-                    navigate("/");
+                    window.location.assign(storeUrl("/"));
                   }}
                   className="w-full"
                   variant="outline"
