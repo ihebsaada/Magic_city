@@ -1,18 +1,23 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useWishlist } from "@/contexts/WishlistContext";
 import { useCart } from "@/contexts/CartContext";
 import { Button } from "@/components/ui/button";
 import { Heart, ShoppingCart, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { selectedVariant, variantProduct } from '@/lib/productVariants';
 
 const Wishlist = () => {
+  const navigate = useNavigate();
   const { items, removeFromWishlist } = useWishlist();
   const { addToCart, isInCart } = useCart();
 
   const handleAddToCart = (product: (typeof items)[0]) => {
-    const defaultColor = product.colors?.[0] ?? "";
-    const defaultSize = product.sizes?.[0] ?? "";
-    addToCart(product, 1, defaultSize, defaultColor);
+    // Stored wishlist cards may be old or lack exact variants. Selection belongs on the detail.
+    const variant = selectedVariant(product);
+    if (product.sizes.length || product.colors.length || !variant || variant.stock < 1) {
+      navigate(`/product/${product.handle}`); return;
+    }
+    addToCart(variantProduct(product, variant), 1);
     toast({
       title: "Aggiunto al carrello",
       description: `${product.title} è stato aggiunto al carrello.`,
@@ -62,10 +67,8 @@ const Wishlist = () => {
               )
             : 0;
 
-          const defaultSize = product.sizes?.[0];
-          const defaultColor = product.colors?.[0];
-
-          const alreadyInCart = isInCart(product.id, defaultSize, defaultColor);
+          const requiresSelection = !!product.sizes.length || !!product.colors.length || !selectedVariant(product);
+          const alreadyInCart = !requiresSelection && isInCart(product.id);
 
           return (
             <div
@@ -130,7 +133,7 @@ const Wishlist = () => {
                     disabled={alreadyInCart}
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />
-                    {alreadyInCart ? "Nel carrello" : "Aggiungi"}
+                    {alreadyInCart ? "Nel carrello" : requiresSelection ? "Scegli le opzioni" : "Aggiungi"}
                   </Button>
                   <Button
                     onClick={() => removeFromWishlist(product.id)}

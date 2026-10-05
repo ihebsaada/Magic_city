@@ -1,18 +1,17 @@
+import { CheckoutHandoff } from '@/components/CheckoutHandoff';
+import { prepareCommonCheckout } from '@/lib/commonCheckout';
 import { Link } from "react-router-dom";
 import { useCart } from "@/contexts/CartContext";
 import { Button } from "@/components/ui/button";
 import { Minus, Plus, Trash2, ShoppingBag, ArrowLeft } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
-import {
-  createCheckoutIntentFromCart,
-  type CheckoutIntentResponse,
-  type ShippingPayload,
-} from "@/services/orderService";
-
-import type { CartItem } from "@/contexts/CartContext";
+import type { CheckoutIntentResponse } from "@/services/orderService";
 import { apiPost } from "@/services/api";
+import { cartFingerprint, refreshCart } from "@/lib/cartValidation";
+import { selectedVariant } from '@/lib/productVariants';
+import { hasPendingCheckout, loadCheckoutAttempt, newCheckoutAttempt, resumeCheckoutAttempt, checkoutPayload, checkoutErrorMessage, startDistinctPurchase, checkCheckoutTotal, confirmCheckoutTotal } from '@/lib/checkoutAttempt';
 
 // ✅ preview endpoint response (backend: POST /discounts/preview)
 type DiscountPreviewResponse = {
@@ -30,37 +29,43 @@ type DiscountPreviewResponse = {
     | null;
 };
 
-async function previewDiscount(subtotal: number, discountCode: string) {
+async function previewDiscount(subtotal: number, discountCode: string, signal?: AbortSignal) {
   return apiPost<DiscountPreviewResponse>("/discounts/preview", {
     subtotal,
     discountCode,
-  });
+  }, { signal, timeoutMs: 30_000 });
 }
 
 const Cart = () => {
-  const { items, removeFromCart, updateQuantity, clearCart, getCartTotal } =
+  const { items, removeFromCart, updateQuantity, clearCart, getCartTotal, replaceItems, updateOptions } =
     useCart();
 
   const [discountCode, setDiscountCode] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const checkoutInFlight = useRef(false);
+  const currentItems = useRef(items);
+  currentItems.current = items;
+  const verification = useRef<AbortController>();
+  const mounted = useRef(true);
+  const [verifying, setVerifying] = useState(false);
+  const [checkoutUncertain, setCheckoutUncertain] = useState(hasPendingCheckout);
+  const [changes, setChanges] = useState<string[]>([]);
+  const [handoffOrder, setHandoffOrder] = useState<string | null>(null);
+  const [changedTotal, setChangedTotal] = useState<number | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; verification.current?.abort(); };
+  }, []);
 
   // 🔹 Mutation React Query pour le checkout
-  const { mutateAsync: checkoutIntent, isPending } = useMutation<
-    CheckoutIntentResponse,
-    Error,
-    {
-      items: CartItem[];
-      customer: { name: string; email: string };
-      discountCode?: string;
-      shipping?: ShippingPayload;
-    }
-  >({
-    mutationFn: ({ items, customer, discountCode, shipping }) =>
-      createCheckoutIntentFromCart(items, customer, discountCode, shipping),
+  const { mutateAsync: checkoutIntent, isPending } = useMutation<CheckoutIntentResponse, Error, void>({
+    retry: false, networkMode: "always", mutationFn: resumeCheckoutAttempt,
   });
-
+  const [hasSavedAttempt, setHasSavedAttempt] = useState(() => {
+    try { const attempt = loadCheckoutAttempt(); return !!attempt && attempt.state !== 'rejected'; } catch { return true; }
+  });
   // ✅ discount preview from backend
   const [previewLoading, setPreviewLoading] = useState(false);
   const [preview, setPreview] = useState<DiscountPreviewResponse | null>(null);
@@ -76,37 +81,29 @@ const Cart = () => {
     country: "",
   });
 
-  const subtotal = useMemo(() => getCartTotal(), [getCartTotal, items]);
+  const subtotal = getCartTotal();
 
   // ✅ live preview (debounced) -> always in sync with DB discounts
   useEffect(() => {
+    const controller = new AbortController();
     const code = discountCode.trim();
-
-    if (!code) {
-      setPreview(null);
-      return;
-    }
-
-    const t = window.setTimeout(async () => {
+    setPreview(null);
+    setPreviewLoading(false);
+    if (!code) return () => controller.abort();
+    const timer = window.setTimeout(async () => {
       setPreviewLoading(true);
       try {
-        const r = await previewDiscount(subtotal, code);
-        setPreview(r);
-      } catch (e) {
-        console.error(e);
-        setPreview({
-          valid: false,
-          appliedCode: null,
-          discountAmount: 0,
-          total: subtotal,
-          reason: "ERROR",
-        });
+        const result = await previewDiscount(subtotal, code, controller.signal);
+        if (!controller.signal.aborted) setPreview(result);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setPreview({ valid: false, appliedCode: null, discountAmount: 0, total: subtotal, reason: 'ERROR' });
+        }
       } finally {
-        setPreviewLoading(false);
+        if (!controller.signal.aborted) setPreviewLoading(false);
       }
     }, 450);
-
-    return () => window.clearTimeout(t);
+    return () => { window.clearTimeout(timer); controller.abort(); };
   }, [discountCode, subtotal]);
 
   const discountAmount = preview?.valid ? preview.discountAmount : 0;
@@ -114,10 +111,44 @@ const Cart = () => {
 
   const finalSubtotal = Math.max(subtotal - discountAmount, 0);
 
-  const shipping = subtotal >= 99.9 ? 0 : 9.9;
+  const shipping = 0; // Backend lots 3-8 keep delivery charges inactive.
   const totalWithDiscount = finalSubtotal + shipping;
+  async function continueCheckout(result: CheckoutIntentResponse) {
+    const controller = new AbortController();
+    verification.current = controller;
+    let differentTotal: number | null;
+    try { differentTotal = await checkCheckoutTotal(controller.signal); }
+    finally { controller.abort(); }
+    if (!mounted.current) return;
+    setCheckoutUncertain(false);
+    if (differentTotal !== null) {
+      setChangedTotal(differentTotal);
+      setFormError("Il totale dell'ordine è cambiato (prezzi o sconto). Controlla e conferma il nuovo importo prima di continuare.");
+      return;
+    }
+    setChangedTotal(null);
+    try { localStorage.setItem('lastOrderId', result.orderId); } catch { /* Credentials remain in the durable attempt. */ }
+    const commonUrl=prepareCommonCheckout(result.orderId);
+    if(commonUrl){window.location.assign(commonUrl);return;}
+    setHandoffOrder(result.orderId);
+  }
 
   const handleCheckout = async () => {
+    if (isPending || checkoutInFlight.current) return;
+    if (hasSavedAttempt) {
+      checkoutInFlight.current = true;
+      try {
+        const result = await checkoutIntent();
+        await continueCheckout(result);
+      } catch (error) {
+        if (mounted.current) {
+          setFormError(checkoutErrorMessage(error));
+          try { const attempt = loadCheckoutAttempt(); setHasSavedAttempt(!!attempt && attempt.state !== 'rejected'); setCheckoutUncertain(hasPendingCheckout()); }
+          catch { setCheckoutUncertain(true); }
+        }
+      } finally { checkoutInFlight.current = false; }
+      return;
+    }
     // 🔎 simple validation côté client
     if (!customerName.trim() || !customerEmail.trim()) {
       setFormError("Per favore inserisci nome ed email.");
@@ -142,8 +173,26 @@ const Cart = () => {
     }
 
     setFormError(null);
+    setChanges([]);
+    checkoutInFlight.current = true;
+    setVerifying(true);
+    const controller = new AbortController();
+    verification.current = controller;
+    let submitted = false;
 
     try {
+      const verified = await refreshCart(items, controller.signal);
+      if (!mounted.current || controller.signal.aborted) return;
+      if (cartFingerprint(items) !== cartFingerprint(currentItems.current)) {
+        setFormError("Il carrello è cambiato. Verifica nuovamente prima di procedere.");
+        return;
+      }
+      replaceItems(verified.items);
+      setChanges(verified.changes);
+      if (verified.errors.length || verified.changes.length) {
+        setFormError(verified.errors.join(" ") || "Carrello aggiornato. Controlla le modifiche e premi nuovamente per confermare.");
+        return;
+      }
       const customer = {
         name: customerName.trim(),
         email: customerEmail.trim(),
@@ -152,31 +201,44 @@ const Cart = () => {
       // ✅ send raw code, backend will validate (and apply from DB)
       const codeToSend = discountCode.trim() ? discountCode.trim() : undefined;
 
-      const { orderId, redirectUrl } = await createCheckoutIntentFromCart(
-        items,
-        customer,
-        codeToSend,
-        {
-          name: customer.name,
-          phone: shippingInfo.phone || undefined,
-          address1: shippingInfo.address1 || undefined,
-          address2: shippingInfo.address2 || undefined,
-          city: shippingInfo.city || undefined,
-          zip: shippingInfo.zip || undefined,
-          state: shippingInfo.state || undefined,
-          country: shippingInfo.country || undefined,
-        },
-      );
-
-      localStorage.setItem("lastOrderId", orderId);
-      window.location.href = redirectUrl;
+      let verifiedDiscount = 0;
+      if (codeToSend) {
+        const checkedDiscount = await previewDiscount(verified.items.reduce((sum, item) => sum + Math.round(item.product.price * 100) * item.quantity, 0) / 100, codeToSend, controller.signal);
+        if (!checkedDiscount.valid) { setFormError("Codice sconto non disponibile. Modificalo prima di confermare."); return; }
+        if (!preview?.valid || preview.discountAmount !== checkedDiscount.discountAmount) {
+          setPreview(checkedDiscount); setFormError("Sconto aggiornato. Controlla il totale e conferma nuovamente."); return;
+        }
+        verifiedDiscount = checkedDiscount.discountAmount;
+      }
+      controller.signal.throwIfAborted();
+      if (cartFingerprint(verified.items) !== cartFingerprint(currentItems.current)) {
+        setFormError("Il carrello è cambiato. Verifica nuovamente prima di procedere."); return;
+      }
+      newCheckoutAttempt(checkoutPayload(verified.items, customer, codeToSend, {
+        name: customer.name, phone: shippingInfo.phone || undefined,
+        address1: shippingInfo.address1, address2: shippingInfo.address2 || undefined,
+        city: shippingInfo.city, zip: shippingInfo.zip, state: shippingInfo.state || undefined, country: shippingInfo.country,
+      }), Math.max(verified.items.reduce((sum, item) => sum + Math.round(item.product.price * 100) * item.quantity, 0) / 100 - verifiedDiscount, 0));
+      setHasSavedAttempt(true);
+      submitted = true;
+      await continueCheckout(await checkoutIntent());
     } catch (e) {
-      console.error(e);
-      alert("Checkout failed. Check console.");
+      if (!mounted.current || controller.signal.aborted) return;
+      if (!submitted) {
+        setFormError("Impossibile verificare prezzi, disponibilità o conservare il tentativo. Nessun ordine inviato. Riprova.");
+      } else {
+        setFormError(checkoutErrorMessage(e));
+        try { const attempt = loadCheckoutAttempt(); setHasSavedAttempt(!!attempt && attempt.state !== 'rejected'); setCheckoutUncertain(hasPendingCheckout()); }
+        catch { setCheckoutUncertain(true); }
+      }
+    } finally {
+      controller.abort();
+      checkoutInFlight.current = false;
+      if (mounted.current) setVerifying(false);
     }
   };
 
-  if (items.length === 0) {
+  if (items.length === 0 && !hasSavedAttempt) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-4">
         <ShoppingBag className="h-16 w-16 text-muted-foreground mb-4" />
@@ -194,7 +256,7 @@ const Cart = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 md:py-12">
+    <fieldset disabled={verifying || isPending} className="container mx-auto min-w-0 px-4 py-8 md:py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl md:text-4xl font-serif font-semibold">
@@ -210,9 +272,14 @@ const Cart = () => {
         </Button>
       </div>
 
+      {hasSavedAttempt && <p role="status" className="mb-4 text-sm">
+        Tentativo salvato: la ripresa usa i dati e lo sconto già confermati, non il carrello o il modulo mostrati ora.
+        Un carrello vuoto non annulla l'ordine. Nessun nuovo ordine viene creato durante la ripresa.
+      </p>}
       <div className="grid lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
           {items.map((item) => {
+            const invalidVariant = item.product.variants !== undefined && !selectedVariant(item.product, item.selectedSize, item.selectedColor);
             const hasDiscount =
               item.product.compareAtPrice &&
               item.product.compareAtPrice > item.product.price;
@@ -246,19 +313,28 @@ const Cart = () => {
                     </h3>
                   </Link>
 
-                  {(item.selectedSize || item.selectedColor) && (
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {item.selectedSize && `Taglia: ${item.selectedSize}`}
-                      {item.selectedSize && item.selectedColor && " · "}
-                      {item.selectedColor && `Colore: ${item.selectedColor}`}
-                    </p>
-                  )}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {(["size", "color"] as const).map((option) => {
+                      const values = option === "size" ? item.product.sizes : item.product.colors;
+                      if (!values.length) return null;
+                      return <label key={option} className="text-sm">
+                        {option === "size" ? "Taglia" : "Colore"}
+                        <select className="ml-2 border rounded bg-background" value={(option === "size" ? item.selectedSize : item.selectedColor) ?? ""}
+                          onChange={(event) => updateOptions(item.product.id, item.selectedSize, item.selectedColor,
+                            option === "size" ? event.target.value || undefined : item.selectedSize,
+                            option === "color" ? event.target.value || undefined : item.selectedColor)}>
+                          <option value="">Seleziona</option>
+                          {values.map((value) => <option key={value} value={value}>{value}</option>)}
+                        </select>
+                      </label>;
+                    })}
+                  </div>
 
                   <div className="flex items-center gap-2 mt-2">
                     <span className="font-semibold">
-                      €{item.product.price.toFixed(2)}
+                      {invalidVariant ? 'Seleziona una combinazione valida di opzioni' : `€${item.product.price.toFixed(2)}`}
                     </span>
-                    {hasDiscount && (
+                    {hasDiscount && !invalidVariant && (
                       <span className="text-sm text-muted-foreground line-through">
                         €{item.product.compareAtPrice!.toFixed(2)}
                       </span>
@@ -495,9 +571,16 @@ const Cart = () => {
               )}
             </div>
 
+            {handoffOrder && <CheckoutHandoff orderId={handoffOrder} />}
+            {changes.length > 0 && <ul role="status" className="mb-3 list-disc pl-4 text-sm">{changes.map((change) => <li key={change}>{change}</li>)}</ul>}
             {formError && (
-              <p className="text-xs text-destructive mb-3">{formError}</p>
+              <p role="alert" className="text-xs text-destructive mb-3">{formError}</p>
             )}
+            {changedTotal !== null && <button className="mb-3 border rounded p-3 text-sm" onClick={() => {
+              try { confirmCheckoutTotal(changedTotal); setChangedTotal(null); void handleCheckout(); }
+              catch (error) { setFormError(checkoutErrorMessage(error)); }
+            }}>Conferma il totale di €{changedTotal.toFixed(2)} e continua</button>}
+            {hasSavedAttempt && !formError && <p role="alert" className="text-xs text-destructive mb-3">Tentativo salvato. La ripresa riutilizza i dati originali anche se modifichi il carrello o il modulo. Non creare un nuovo ordine.</p>}
 
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
@@ -525,22 +608,18 @@ const Cart = () => {
               </div>
             </div>
 
-            {subtotal < 99.9 && (
-              <p className="text-xs text-muted-foreground mt-4 text-center">
-                Aggiungi €{(99.9 - subtotal).toFixed(2)} per la spedizione
-                gratuita
-              </p>
-            )}
-
             <Button
               className="w-full mt-6"
               size="lg"
               onClick={handleCheckout}
-              disabled={isPending}
+              disabled={verifying || isPending}
             >
-              {isPending ? "Reindirizzamento..." : "Procedi al Checkout"}
+              {verifying ? "Verifica prezzi e disponibilità..." : isPending ? "Reindirizzamento..." : hasSavedAttempt ? "Riprendi lo stesso tentativo" : "Procedi al Checkout"}
             </Button>
 
+            {hasSavedAttempt && !checkoutUncertain && <button className="mt-3 underline text-sm" onClick={() => {
+              try { startDistinctPurchase(); setHasSavedAttempt(false); setFormError(null); setHandoffOrder(null); } catch (error) { setFormError(checkoutErrorMessage(error)); }
+            }}>Inizia un acquisto distinto</button>}
             <Link
               to="/catalog"
               className="flex items-center justify-center gap-2 mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -551,7 +630,7 @@ const Cart = () => {
           </div>
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 };
 

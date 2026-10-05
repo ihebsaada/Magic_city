@@ -1,88 +1,22 @@
-// src/pages/CollectionDetail.tsx
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { getProductsByCollection } from "@/services/productService";
-import { Product } from "@/types/product";
-import { ProductCard } from "@/components/product/ProductCard";
-
+import { useParams } from 'react-router-dom';
+import { CatalogueBrowser } from '@/components/CatalogueBrowser';
+import { useCatalogue, useCollections } from '@/hooks/useProducts';
 const CollectionDetail = () => {
   const { collectionHandle } = useParams<{ collectionHandle: string }>();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadProducts = async () => {
-      if (!collectionHandle) return;
-      setLoading(true);
-      const collectionProducts = await getProductsByCollection(
-        collectionHandle
-      );
-      setProducts(collectionProducts);
-      setLoading(false);
-    };
-
-    loadProducts().catch(console.error);
-  }, [collectionHandle]);
-
-  const collectionName = collectionHandle
-    ?.split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Caricamento...</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      {products.length > 0 && (
-        <div className="relative h-[400px] w-full overflow-hidden">
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${products[0].mainImage})` }}
-          />
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="relative flex h-full items-center justify-center">
-            <div className="container mx-auto px-4 text-center">
-              <h1 className="mb-4 font-serif text-5xl font-bold text-white md:text-6xl">
-                {collectionName}
-              </h1>
-              <p className="text-lg text-white/90">
-                Scopri i modelli esclusivi di questa collezione
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="container mx-auto px-4 py-12">
-        {/* Counter */}
-        <div className="mb-8 text-sm text-muted-foreground">
-          {products.length} prodotti disponibili
-        </div>
-
-        {/* Products Grid */}
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-
-        {products.length === 0 && (
-          <div className="py-16 text-center">
-            <p className="text-muted-foreground">
-              Nessun prodotto trovato in questa collezione
-            </p>
-          </div>
-        )}
-      </div>
+  const cover = useCatalogue({ collection: collectionHandle, pageSize: 1 }, !!collectionHandle);
+  const collections = useCollections();
+  const title = collections.data?.find((item) => item.handle === collectionHandle)?.title ?? collectionHandle?.split('-').join(' ');
+  const image = cover.data?.items[0]?.mainImage;
+  return <div className="min-h-screen">
+    {image && <div className="relative h-[400px] overflow-hidden">
+      <img src={image} alt="" className="absolute inset-0 h-full w-full object-cover" />
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative flex h-full items-center justify-center"><h1 className="font-serif text-5xl font-bold text-white">{title}</h1></div>
+    </div>}
+    <div className="container mx-auto px-4 py-12">
+      {!image && <h1 className="mb-8 font-serif text-4xl font-bold">{title}</h1>}
+      <CatalogueBrowser key={collectionHandle} collection={collectionHandle} />
     </div>
-  );
+  </div>;
 };
-
 export default CollectionDetail;

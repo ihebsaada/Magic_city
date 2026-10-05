@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  getProductByHandle,
-  getProductsByCollection,
-} from "@/services/productService";
-import { Product } from "@/types/product";
+import { useProduct, useCatalogue, useProductVariants } from "@/hooks/useProducts";
+import { QueryFeedback } from "@/components/QueryFeedback";
+import { selectedVariant, variantProduct } from '@/lib/productVariants';
+import { cardAsProduct } from '@/services/productService';
+import { validSelection } from "@/lib/cartValidation";
 import { Button } from "@/components/ui/button";
 import { BadgeCustom } from "@/components/ui/badge-custom";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -12,7 +12,6 @@ import { Heart, ShoppingBag, Truck, RefreshCcw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCart } from "@/contexts/CartContext";
 import { useWishlist } from "@/contexts/WishlistContext";
-import { useQuery } from "@tanstack/react-query";
 
 const ProductDetail = () => {
   const { handle } = useParams<{ handle: string }>();
@@ -23,49 +22,34 @@ const ProductDetail = () => {
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [selectedColor, setSelectedColor] = useState<string>("");
   const [mainImage, setMainImage] = useState<string>("");
+  const initializedHandle = useRef<string>();
 
   // 🔹 ref + états pour la sticky bar
   const actionsRef = useRef<HTMLDivElement | null>(null);
   const [belowActions, setBelowActions] = useState(false);
   const [atBottom, setAtBottom] = useState(false);
 
-  // 🔹 Produit principal
-  const {
-    data: product,
-    isLoading: productLoading,
-    isError: productError,
-  } = useQuery<Product | null>({
-    queryKey: ["product", handle],
-    queryFn: () => getProductByHandle(handle!),
-    enabled: !!handle,
-  });
-
-  // 🔹 Produits de la même collection
-  const collectionHandle = product?.collection;
-  const { data: collectionProducts = [] } = useQuery<Product[]>({
-    queryKey: ["relatedProducts", collectionHandle],
-    queryFn: () => getProductsByCollection(collectionHandle!),
-    enabled: !!collectionHandle,
-  });
-
-  // 🔹 On enlève le produit courant de la liste des “related”
+  const productQuery = useProduct(handle);
+  const variantsQuery = useProductVariants(productQuery.data);
+  const product = useMemo(() => productQuery.data ? { ...productQuery.data, ...(variantsQuery.data ? {
+    ...variantsQuery.data, description: productQuery.data.description, images: productQuery.data.images, mainImage: productQuery.data.mainImage,
+  } : {}) } : productQuery.data, [productQuery.data, variantsQuery.data]);
+  const productLoading = productQuery.isPending;
+  const productError = productQuery.isError;
+  const relatedQuery = useCatalogue({ collection: product?.collection, pageSize: 5 }, !!product?.collection);
+  const collectionProducts = relatedQuery.data?.items.map(cardAsProduct) ?? [];
   const relatedProducts = collectionProducts.filter(
     (p) => p.id !== product?.id
-  );
+  ).slice(0, 4);
 
   // 🔹 Init image, taille, couleur quand le produit est chargé
   useEffect(() => {
     if (!product) return;
-
-    setMainImage(product.mainImage);
-
-    if (product.colors && product.colors.length > 0) {
-      setSelectedColor(product.colors[0]);
-    }
-
-    if (product.sizes?.length) {
-      setSelectedSize(product.sizes[0]);
-    }
+    const changedProduct = initializedHandle.current !== product.handle;
+    initializedHandle.current = product.handle;
+    setMainImage((current) => validSelection(product, undefined, undefined, changedProduct ? undefined : current).image);
+    setSelectedColor((current) => validSelection(product, undefined, changedProduct ? undefined : current).color ?? "");
+    setSelectedSize((current) => validSelection(product, changedProduct ? undefined : current).size ?? "");
   }, [product]);
 
   // 🔹 Scroll handler : montre la sticky bar quand le bloc actions n'est plus visible
@@ -107,28 +91,31 @@ const ProductDetail = () => {
   if (!product && !productLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">
-          {productError ? "Erreur lors du chargement" : "Prodotto non trovato"}
-        </p>
+        <QueryFeedback error={productError} onRetry={() => { void productQuery.refetch(); }} />
+        {!productError && <p>Prodotto non trovato</p>}
       </div>
     );
   }
 
-  // Pendant le chargement : on laisse le loader global React Query gérer
-  if (!product) return null;
+  // Only the primary product shows an initial loading state.
+  if (!product) return <div className="container py-12"><QueryFeedback loading onRetry={() => { void productQuery.refetch(); }} /></div>;
 
+  const variant = selectedVariant(product, selectedSize || undefined, selectedColor || undefined);
+  const displayProduct = variant ? variantProduct(product, variant) : product;
+  const canBuy = !!variant && variant.stock > 0 && !productQuery.isError && !variantsQuery.isError;
   const hasDiscount =
-    product.compareAtPrice && product.compareAtPrice > product.price;
+    displayProduct.compareAtPrice && displayProduct.compareAtPrice > displayProduct.price;
   const discountPercent = hasDiscount
     ? Math.round(
-        ((product.compareAtPrice! - product.price) / product.compareAtPrice!) *
+        ((displayProduct.compareAtPrice! - displayProduct.price) / displayProduct.compareAtPrice!) *
           100
       )
     : 0;
 
   const handleAddToCart = () => {
+    if (!canBuy || !variant) return;
     addToCart(
-      product,
+      variantProduct(product, variant),
       1,
       selectedSize || undefined,
       selectedColor || undefined
@@ -144,12 +131,13 @@ const ProductDetail = () => {
   const inWishlist = isInWishlist(product.id);
 
   // 🔹 Condition d’affichage de la sticky bar
-  const showStickyBar = belowActions && !atBottom && product.stock > 0;
+  const showStickyBar = belowActions && !atBottom && canBuy;
 
   return (
     <>
       <div className="min-h-screen py-12">
         <div className="container mx-auto px-4">
+          <QueryFeedback error={productQuery.isError} hasData onRetry={() => { void productQuery.refetch(); }} />
           {/* Product Main */}
           <div className="grid gap-8 lg:grid-cols-2">
             {/* Images */}
@@ -195,12 +183,13 @@ const ProductDetail = () => {
                 </h1>
                 <div className="flex items-center gap-3">
                   <span className="font-serif text-3xl font-bold">
-                    €{product.price.toFixed(2)}
+                    {!variant && 'Prezzo indicativo: '}
+                    €{displayProduct.price.toFixed(2)}
                   </span>
                   {hasDiscount && (
                     <>
                       <span className="text-xl text-muted-foreground line-through">
-                        €{product.compareAtPrice!.toFixed(2)}
+                        €{displayProduct.compareAtPrice!.toFixed(2)}
                       </span>
                       <BadgeCustom variant="sale">
                         -{discountPercent}%
@@ -259,13 +248,14 @@ const ProductDetail = () => {
               </div>
 
               {/* Stock */}
+              <QueryFeedback loading={variantsQuery.isFetching} error={variantsQuery.isError} hasData={variantsQuery.data !== undefined} onRetry={() => { void variantsQuery.refetch(); }} />
               <div className="text-sm">
-                {product.stock > 0 ? (
+                {variant && variant.stock > 0 ? (
                   <p className="text-green-600">
-                    {product.stock} pezzi disponibili
+                    {variant?.stock} pezzi disponibili
                   </p>
                 ) : (
-                  <p className="text-destructive">Esaurito</p>
+                  <p className="text-destructive">{variant ? "Esaurito" : "Seleziona una combinazione valida e non ambigua di opzioni."}</p>
                 )}
               </div>
 
@@ -275,7 +265,7 @@ const ProductDetail = () => {
                   size="lg"
                   className="w-full bg-primary hover:bg-primary/90"
                   onClick={handleAddToCart}
-                  disabled={product.stock <= 0}
+                  disabled={!canBuy}
                 >
                   <ShoppingBag className="mr-2 h-5 w-5" />
                   Aggiungi al Carrello
@@ -336,6 +326,7 @@ const ProductDetail = () => {
             </Tabs>
           </div>
 
+          <div className="mt-16"><QueryFeedback loading={relatedQuery.isFetching} error={relatedQuery.isError} hasData={relatedQuery.data !== undefined} onRetry={() => { void relatedQuery.refetch(); }} /></div>
           {/* Related Products */}
           {relatedProducts.length > 0 && (
             <div className="mt-16">
@@ -364,7 +355,7 @@ const ProductDetail = () => {
 
               <div className="flex flex-wrap items-center gap-3">
                 <span className="text-sm font-medium">
-                  {product.title} · €{product.price.toFixed(2)}
+                  {product.title} · €{displayProduct.price.toFixed(2)}
                 </span>
 
                 {/* Taglia directement modifiable dans la sticky bar */}
@@ -394,7 +385,7 @@ const ProductDetail = () => {
               className="whitespace-nowrap px-6"
               size="lg"
               onClick={handleAddToCart}
-              disabled={product.stock <= 0}
+              disabled={!canBuy}
             >
               Aggiungi al Carrello
             </Button>

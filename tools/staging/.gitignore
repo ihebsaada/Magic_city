@@ -1,0 +1,5 @@
+.runtime/
+*.log
+# Generated local validation results, never test inputs
+*RESULTS*.json
+COMPATIBILITY*INVENTORY.json
