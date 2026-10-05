@@ -34,6 +34,7 @@ export async function revokeGuestAccess(orderId:string) {
  return prisma.$transaction(async tx=>{
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',orderId);
   if(!await tx.order.findUnique({where:{id:orderId}}))throw new GuestAccessError(404,"ORDER_NOT_FOUND");
+  await tx.navigationHandoff.updateMany({where:{orderId,revokedAt:null},data:{revokedAt:new Date()}});
   await tx.orderHandoff.updateMany({where:{expectedOrderId:orderId,revokedAt:null},data:{revokedAt:new Date()}});
   await tx.guestOrderAccess.updateMany({where:{orderId,revokedAt:null},data:{revokedAt:new Date()}});
   await tx.guestOrderRecovery.updateMany({where:{orderId,usedAt:null},data:{usedAt:new Date()}});
@@ -76,6 +77,7 @@ export async function redeemGuestRecovery(value:unknown) {
   const current=await tx.guestOrderRecovery.findUnique({where:{tokenHash}});
   if(!current || current.usedAt || current.expiresAt.getTime()<=Date.now())throw new GuestAccessError(401,"ORDER_ACCESS_DENIED");
   const token=secret(),expiresAt=new Date(Date.now()+ACCESS_MS);
+  await tx.navigationHandoff.updateMany({where:{orderId:row.orderId,revokedAt:null},data:{revokedAt:new Date()}});
   await tx.orderHandoff.updateMany({where:{expectedOrderId:row.orderId,revokedAt:null},data:{revokedAt:new Date()}});
   await tx.guestOrderAccess.updateMany({where:{orderId:row.orderId,revokedAt:null},data:{revokedAt:new Date()}});
   await tx.guestOrderRecovery.updateMany({where:{orderId:row.orderId,usedAt:null},data:{usedAt:new Date()}});

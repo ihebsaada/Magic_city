@@ -17,7 +17,7 @@ export function handoffCors(origins=DEFAULT_HANDOFF_ORIGINS):RequestHandler {
  };
 }
 const buckets=new Map<string,{time:number;count:number}>();
-const throttle:RequestHandler=(req,res,next)=>{
+export const throttle:RequestHandler=(req,res,next)=>{
  const now=Date.now(),key=req.ip||"unknown";
  if(buckets.size>=10000)for(const [k,v] of buckets)if(now-v.time>=60000)buckets.delete(k);
  let bucket=buckets.get(key);

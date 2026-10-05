@@ -37,18 +37,18 @@ function replay(record: { requestHash: string; replayUntil: Date; response: Pris
   return { response: record.response, status: record.statusCode, replayed: true };
 }
 
-async function create(db: Prisma.TransactionClient, value: unknown, endpoint: Endpoint, tokenHash?:string) {
- const {data,quantities}=await prepareOrder(value,db);
+async function create(db: Prisma.TransactionClient, value: unknown, endpoint: Endpoint, tokenHash?:string,shippingEnabled=false) {
+ const {data,quantities}=await prepareOrder(value,db,shippingEnabled);
  const order=await db.order.create({data,include:{items:true}});
  await reserveOrder(db,order.id,quantities,data.discountCode as string|null);
  if(tokenHash)await bindGuestAccess(db,tokenHash,order.id);
  if(endpoint==="intent")return {orderId:order.id,redirectUrl:(process.env.CHECKOUT_APP_URL||"http://localhost:5173")+"/checkout-landing?orderId="+order.id};
  return order;
 }
-export async function createIdempotentOrder(value: unknown, endpoint: Endpoint, header: unknown, accessToken?:unknown) {
+export async function createIdempotentOrder(value: unknown, endpoint: Endpoint, header: unknown, accessToken?:unknown,shippingEnabled=false) {
   const tokenHash=accessToken===undefined?undefined:accessHash(accessToken);
   const key = parseIdempotencyKey(header);
-  if (!key) return { response: await prisma.$transaction(tx=>create(tx,value,endpoint,tokenHash),{maxWait:5000,timeout:10000}), status: 201, replayed: false };
+  if (!key) return { response: await prisma.$transaction(tx=>create(tx,value,endpoint,tokenHash,shippingEnabled),{maxWait:5000,timeout:10000}), status: 201, replayed: false };
   const keyHash = hash(key);
   const baseFingerprint = requestFingerprint(value, endpoint);
   const fingerprint=tokenHash?hash(baseFingerprint+":"+tokenHash):baseFingerprint;
@@ -62,7 +62,7 @@ export async function createIdempotentOrder(value: unknown, endpoint: Endpoint, 
     return await prisma.$transaction(async (tx) => {
       // The unique insert waits on a competing uncommitted insert; no process-local lock.
       await tx.orderIdempotency.create({ data: { keyHash, requestHash: fingerprint, endpoint, replayUntil: new Date(Date.now() + REPLAY_MS) } });
-      const response = snapshot(await create(tx, value, endpoint,tokenHash));
+      const response = snapshot(await create(tx, value, endpoint,tokenHash,shippingEnabled));
       const orderId = (response as Record<string, Prisma.InputJsonValue>)[endpoint === "intent" ? "orderId" : "id"] as string;
       await tx.orderIdempotency.update({ where: { keyHash }, data: { orderId, response } });
       return { response, status: 201, replayed: false };

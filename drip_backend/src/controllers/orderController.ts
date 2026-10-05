@@ -30,7 +30,7 @@ export async function confirmStripePayment(req:Request,res:Response) {
 }
 export async function createCheckoutIntent(req: Request, res: Response) {
   try {
-    const result = await createIdempotentOrder(req.body, "intent", req.headers["idempotency-key"],req.headers["order-access-token"]);
+    const result = await createIdempotentOrder(req.body, "intent", req.headers["idempotency-key"],req.headers["order-access-token"],req.app.locals.staging===true);
     res.setHeader("Idempotency-Replayed", String(result.replayed));
     return res.status(result.status).json(result.response);
   } catch (err) {
@@ -172,7 +172,7 @@ export async function adminGetOrderById(req: Request, res: Response) {
 // ✅ OPTIONAL: create order directly (if you still use /orders)
 export async function createOrder(req: Request, res: Response) {
   try {
-    const result = await createIdempotentOrder(req.body, "orders", req.headers["idempotency-key"],req.headers["order-access-token"]);
+    const result = await createIdempotentOrder(req.body, "orders", req.headers["idempotency-key"],req.headers["order-access-token"],req.app.locals.staging===true);
     res.setHeader("Idempotency-Replayed", String(result.replayed));
     return res.status(result.status).json(result.response);
   } catch (err) {

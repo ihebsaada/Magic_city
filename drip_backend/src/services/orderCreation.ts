@@ -1,3 +1,4 @@
+import {shippingAmount} from './shipping';
 import { Prisma } from "@prisma/client";
 
 import {ReservationError} from "./reservations";
@@ -38,7 +39,7 @@ export function validateOrderInput(value: unknown) {
   }
   return { customerName, customerEmail, items, shipping, discountCode: normalizeCode(body.discountCode) };
 }
-export async function prepareOrder(value: unknown, db: Prisma.TransactionClient): Promise<{data:Prisma.OrderCreateInput;quantities:Map<number,number>}> {
+export async function prepareOrder(value: unknown, db: Prisma.TransactionClient, shippingEnabled=false): Promise<{data:Prisma.OrderCreateInput;quantities:Map<number,number>}> {
   const input = validateOrderInput(value);
   const ids=[...new Set(input.items.map(i=>i.productId))].sort((a,b)=>a-b);
   for(const id of ids) await db.$queryRawUnsafe('SELECT "id" FROM "Product" WHERE "id"=$1 FOR UPDATE',id);
@@ -79,10 +80,12 @@ export async function prepareOrder(value: unknown, db: Prisma.TransactionClient)
       throw new ReservationError(409,"DISCOUNT_UNAVAILABLE");
   }
   const pricing = await priceDiscount(money(subtotal), input.discountCode, db);
+  const finalTotal=pricing.total.plus(shippingAmount(subtotal,shippingEnabled));
+  if(finalTotal.gt(MAX_AMOUNT))throw new OrderInputError("Order amount exceeds limit");
   const s = input.shipping;
   return {quantities,data:{ customerName: input.customerName, customerEmail: input.customerEmail,
     currency: (process.env.STRIPE_CURRENCY || "eur").toUpperCase(),
-    total: pricing.total, originalTotal: pricing.originalTotal, discountAmount: pricing.discountAmount, discountCode: pricing.appliedCode,
+    total: finalTotal, originalTotal: pricing.originalTotal, discountAmount: pricing.discountAmount, discountCode: pricing.appliedCode,
     shippingName: s.name ?? input.customerName, shippingPhone: s.phone ?? null, shippingAddress1: s.address1 ?? null,
     shippingAddress2: s.address2 ?? null, shippingCity: s.city ?? null, shippingZip: s.zip ?? null,
     shippingState: s.state ?? null, shippingCountry: s.country ?? null,

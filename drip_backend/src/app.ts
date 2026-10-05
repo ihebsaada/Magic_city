@@ -1,3 +1,4 @@
+import navigationRoutes,{navigationCors} from './routes/navigationHandoffRoutes';
 import handoffRoutes, {handoffCors, DEFAULT_HANDOFF_ORIGINS} from "./routes/orderHandoffRoutes";
 import {RecoveryDelivery} from "./services/guestOrderAccess";
 import express from "express";
@@ -16,14 +17,15 @@ export function createApp({ logging = true, orderAccessRequired=false, orderReco
   const app = express();
   app.locals.orderAccessRequired=orderAccessRequired;
   app.locals.staging=staging;
+  app.locals.handoffOrigins=handoffOrigins;
   if(allowedOrigins)app.use((req,res,next)=>{res.set({'Cache-Control':'no-store','Referrer-Policy':'no-referrer'});const origin=req.get('Origin');if(origin && !allowedOrigins.includes(origin))return res.status(403).json({error:'ORIGIN_DENIED'});next();});
   app.get('/healthz',(_req,res)=>res.json({ok:true}));
   app.locals.orderRecoveryDelivery=orderRecoveryDelivery;
   if (logging) app.use(morgan(":method :status :response-time ms", {
-    skip: (req) => /^\/api\/(?:orders|order-handoffs|order-access|admin|checkout|pay|stripe)(?:\/|$)/i.test(req.path),
+    skip: (req) => /^\/api\/(?:orders|navigation-handoffs|order-handoffs|order-access|admin|checkout|pay|stripe)(?:\/|$)/i.test(req.path),
   }));
   app.use("/api", (req, res, next) => {
-    if (/^\/(?:orders|order-handoffs|order-access|admin|checkout|pay|stripe)(?:\/|$)/i.test(req.path)) {
+    if (/^\/(?:orders|navigation-handoffs|order-handoffs|order-access|admin|checkout|pay|stripe)(?:\/|$)/i.test(req.path)) {
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Referrer-Policy","no-referrer");
@@ -33,8 +35,9 @@ export function createApp({ logging = true, orderAccessRequired=false, orderReco
     next();
   });
 
+  app.use(navigationCors(handoffOrigins));
   app.use(handoffCors(handoffOrigins));
-  app.use((req,res,next)=>req.path.toLowerCase().includes("/order-handoffs") || /\/orders\/[^/]+\/handoffs/i.test(req.path)?next():cors(allowedOrigins?{origin:allowedOrigins,allowedHeaders:["Content-Type","Authorization","Order-Access-Token","Idempotency-Key"]}:undefined)(req,res,next));
+  app.use((req,res,next)=>req.path.toLowerCase().includes("/navigation-handoffs") || req.path.toLowerCase().includes("/order-handoffs") || /\/orders\/[^/]+\/handoffs/i.test(req.path)?next():cors(allowedOrigins?{origin:allowedOrigins,allowedHeaders:["Content-Type","Authorization","Order-Access-Token","Idempotency-Key"]}:undefined)(req,res,next));
 
   app.post(
     "/api/stripe/webhook",
@@ -51,6 +54,7 @@ export function createApp({ logging = true, orderAccessRequired=false, orderReco
   app.use("/api", adminAuthRoutes);
   app.use("/api", collectionRoutes);
   app.use("/api", productRoutes);
+  app.use("/api", navigationRoutes);
   app.use("/api", handoffRoutes);
   app.use("/api", orderRoutes);
   app.use("/api", adminDiscountRouter);

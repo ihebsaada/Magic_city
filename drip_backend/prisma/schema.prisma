@@ -74,6 +74,7 @@ model ProductCollection {
 }
 
 model Order {
+  navigationHandoffs NavigationHandoff[]
   guestAccessTokens   GuestOrderAccess[]
   guestRecoveries     GuestOrderRecovery[]
   reservation         OrderReservation?
@@ -236,6 +237,8 @@ model StockReservationItem {
 }
 
 model GuestOrderAccess {
+  navigationSources NavigationHandoff[] @relation("NavigationSource")
+  navigationRecipients NavigationHandoff[] @relation("NavigationRecipient")
   handoff OrderHandoff?
   tokenHash String    @id @db.Char(64)
   orderId   String?
@@ -270,4 +273,23 @@ model OrderHandoff {
  createdAt DateTime @default(now())
  recipient GuestOrderAccess @relation(fields:[recipientHash],references:[tokenHash],onDelete:Restrict)
  @@index([expectedOrderId,createdAt])
+}
+
+model NavigationHandoff {
+ ticketHash String @id @db.Char(64)
+ creationKeyHash String @unique @db.Char(64)
+ requestHash String @db.Char(64)
+ ticketCiphertext String
+ orderId String
+ sourceHash String @db.Char(64)
+ recipientHash String? @db.Char(64)
+ checkoutOrigin String
+ expiresAt DateTime
+ redeemedAt DateTime?
+ revokedAt DateTime?
+ createdAt DateTime @default(now())
+ order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+ source GuestOrderAccess @relation("NavigationSource",fields:[sourceHash],references:[tokenHash],onDelete:Restrict)
+ recipient GuestOrderAccess? @relation("NavigationRecipient",fields:[recipientHash],references:[tokenHash],onDelete:Restrict)
+ @@index([orderId,createdAt])
 }
