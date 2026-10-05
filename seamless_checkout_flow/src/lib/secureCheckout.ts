@@ -84,7 +84,7 @@ export function validatePaymentURL(value:string):URL {
     import.meta.env.PROD===false && import.meta.env.VITE_LOCAL_STRIPE_ORIGIN==="http://127.0.0.1:4101" &&
     typeof window!=="undefined" && (window.location.origin==="http://127.0.0.1:5174" || commonAccessEnabled()) &&
     u.origin==="http://127.0.0.1:4101";
-  if((!stripe&&!local)||u.username||u.password||u.hash)
+  if((!stripe&&!local)||u.username||u.password||(!stripe&&u.hash))
     throw new CheckoutError(409,"PAYMENT_SESSION_INVALID");
   return u;
 }

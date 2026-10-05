@@ -5,8 +5,10 @@ const allowed=process.env.PAYMENT_SIMULATOR_ALLOWED==="true";
 const browserOrigin=process.env.PAYMENT_BROWSER_ORIGIN??"http://127.0.0.1:5174";
 Object.defineProperty(globalThis,"window",{value:{location:{origin:browserOrigin}},configurable:true});
 test("Stripe exact HTTPS origin remains accepted",()=>{assert.equal(validatePaymentURL("https://checkout.stripe.com/c/pay/cs_test").origin,"https://checkout.stripe.com");});
-test("malicious URLs, credentials, unexpected ports and fragments are rejected",()=>{
- for(const url of ["http://checkout.stripe.com/pay","https://checkout.stripe.com.evil.invalid/pay","https://sub.checkout.stripe.com/pay","https://checkout.stripe.com:444/pay","https://user:password@checkout.stripe.com/pay","https://checkout.stripe.com/pay#secret","not a URL","http://127.0.0.1:4102/session/test","http://localhost:4101/session/test","https://127.0.0.1:4101/session/test","http://127.0.0.1.evil.invalid:4101/session/test","http://user:password@127.0.0.1:4101/session/test","http://127.0.0.1:4101/session/test#secret"])assert.throws(()=>validatePaymentURL(url),CheckoutError,url);
+test("official Stripe fragment is preserved without relaxing its exact origin",()=>{const value="https://checkout.stripe.com/c/pay/cs_test#fidkdWxOYHwnPyd1blppbHNgWjA0";assert.equal(validatePaymentURL(value).href,value);assert.equal(validatePaymentURL(value).hash,"#fidkdWxOYHwnPyd1blppbHNgWjA0");});
+
+test("malicious URLs, credentials, unexpected ports and simulator fragments are rejected",()=>{
+ for(const url of ["http://checkout.stripe.com/pay","https://checkout.stripe.com.evil.invalid/pay","https://sub.checkout.stripe.com/pay","https://checkout.stripe.com:444/pay","https://user:password@checkout.stripe.com/pay","not a URL","http://127.0.0.1:4102/session/test","http://localhost:4101/session/test","https://127.0.0.1:4101/session/test","http://127.0.0.1.evil.invalid:4101/session/test","http://user:password@127.0.0.1:4101/session/test","http://127.0.0.1:4101/session/test#secret"])assert.throws(()=>validatePaymentURL(url),CheckoutError,url);
 });
 test("local simulator capability matches compile-time configuration and browser origin",()=>{
  const url="http://127.0.0.1:4101/session/cs_stage_test";
