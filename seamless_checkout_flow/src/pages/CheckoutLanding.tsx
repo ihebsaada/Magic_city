@@ -1,354 +1,39 @@
-// // export default CheckoutLanding;
-
-// import { useEffect, useState } from "react";
-// import { useSearchParams } from "react-router-dom";
-// import { Shield, Lock, CreditCard } from "lucide-react";
-// import { Button } from "@/components/ui/button";
-
-// type OrderMin = {
-//   id: string;
-//   total: number;
-//   currency: string;
-//   status: string;
-//   paymentStatus: string;
-//   createdAt: string;
-// };
-
-// const API_URL =
-//   import.meta.env.VITE_PRIMARY_API_URL ?? "http://localhost:4000/api";
-
-// const CheckoutLanding = () => {
-//   const [params] = useSearchParams();
-//   const orderId = params.get("orderId");
-
-//   const [order, setOrder] = useState<OrderMin | null>(null);
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState<string | null>(null);
-
-//   useEffect(() => {
-//     if (!orderId) {
-//       setError("Missing orderId. Please start checkout from the main shop.");
-//       setLoading(false);
-//       return;
-//     }
-
-//     (async () => {
-//       try {
-//         const res = await fetch(`${API_URL}/orders/${orderId}/min`);
-//         if (!res.ok) throw new Error(await res.text());
-//         const data = (await res.json()) as OrderMin;
-//         setOrder(data);
-//       } catch (e) {
-//         setError(e instanceof Error ? e.message : String(e));
-//       } finally {
-//         setLoading(false);
-//       }
-//     })();
-//   }, [orderId]);
-
-//   const handlePay = async () => {
-//     if (!orderId) {
-//       alert("Missing orderId");
-//       return;
-//     }
-
-//     try {
-//       const res = await fetch(`${API_URL}/pay`, {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({ orderId }),
-//       });
-
-//       if (!res.ok) {
-//         console.error(await res.text());
-//         alert("Payment init failed (check console)");
-//         return;
-//       }
-
-//       const data = (await res.json()) as { url: string; sessionId: string };
-
-//       if (!data.url) {
-//         alert("Stripe URL missing in response");
-//         return;
-//       }
-
-//       window.location.href = data.url;
-//     } catch (e) {
-//       console.error(e);
-//       alert("Network error (check backend running)");
-//     }
-//   };
-
-//   return (
-//     <div className="min-h-screen bg-background flex flex-col">
-//       {/* Header */}
-//       <header className="border-b border-border">
-//         <div className="container mx-auto px-4 py-4">
-//           <div className="flex items-center gap-2">
-//             <Shield className="h-6 w-6 text-accent" />
-//             <span className="font-semibold text-lg">Secure Checkout</span>
-//           </div>
-//         </div>
-//       </header>
-
-//       {/* Hero Section */}
-//       <main className="flex-1 flex items-center justify-center">
-//         <div className="container mx-auto px-4 py-16">
-//           <div className="max-w-2xl mx-auto text-center animate-fade-in">
-//             <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-accent/10 mb-8">
-//               <Lock className="h-10 w-10 text-accent" />
-//             </div>
-
-//             <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 tracking-tight">
-//               Secure Checkout
-//             </h1>
-
-//             {loading && (
-//               <p className="text-lg text-muted-foreground mb-10">
-//                 Loading your order…
-//               </p>
-//             )}
-
-//             {error && <p className="text-lg text-red-500 mb-10">{error}</p>}
-
-//             {order && (
-//               <>
-//                 <p className="text-sm text-muted-foreground mb-2">Order ID</p>
-//                 <p className="font-mono text-xs break-all mb-6">{order.id}</p>
-
-//                 <div className="text-3xl font-bold text-foreground mb-8">
-//                   {order.total} {order.currency}
-//                 </div>
-
-//                 <Button
-//                   onClick={handlePay}
-//                   size="lg"
-//                   className="bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-6 text-lg font-medium shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:shadow-primary/30"
-//                 >
-//                   <CreditCard className="mr-2 h-5 w-5" />
-//                   Pay now
-//                 </Button>
-
-//                 {/* Trust indicators */}
-//                 <div
-//                   className="mt-16 grid grid-cols-3 gap-6 max-w-lg mx-auto animate-slide-up"
-//                   style={{ animationDelay: "0.2s" }}
-//                 >
-//                   <div className="text-center">
-//                     <div className="text-2xl font-bold text-foreground">
-//                       256-bit
-//                     </div>
-//                     <div className="text-sm text-muted-foreground">
-//                       SSL Encryption
-//                     </div>
-//                   </div>
-//                   <div className="text-center">
-//                     <div className="text-2xl font-bold text-foreground">
-//                       PCI
-//                     </div>
-//                     <div className="text-sm text-muted-foreground">
-//                       Compliant
-//                     </div>
-//                   </div>
-//                   <div className="text-center">
-//                     <div className="text-2xl font-bold text-foreground">
-//                       100%
-//                     </div>
-//                     <div className="text-sm text-muted-foreground">Secure</div>
-//                   </div>
-//                 </div>
-//               </>
-//             )}
-//           </div>
-//         </div>
-//       </main>
-
-//       {/* Footer */}
-//       <footer className="border-t border-border py-6">
-//         <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-//           Protected by industry-standard security measures
-//         </div>
-//       </footer>
-//     </div>
-//   );
-// };
-
-// export default CheckoutLanding;
-// export default CheckoutLanding;
-
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Shield, Lock, CreditCard } from "lucide-react";
+import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
+import { commonAccessEnabled, loadCommonOrder, preparePairing, checkPairing, readAttempt, renewPendingPairing, readOrder, pay, formatMoney, errorMessage, type Handoff, type OrderMin } from "@/lib/secureCheckout";
 
-type OrderMin = {
-  id: string;
-  total: number;
-  currency: string;
-  status: string;
-  paymentStatus: string;
-  createdAt: string;
-};
-
-const API_URL =
-  import.meta.env.VITE_PRIMARY_API_URL ?? "http://localhost:4000/api";
-
-const CheckoutLanding = () => {
-  const [params] = useSearchParams();
-  const orderId = params.get("orderId");
-
-  const [order, setOrder] = useState<OrderMin | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!orderId) {
-      setError("ID ordine mancante. Avvia il checkout dal negozio principale.");
-      setLoading(false);
-      return;
-    }
-
-    (async () => {
-      try {
-        const res = await fetch(`${API_URL}/orders/${orderId}/min`);
-        if (!res.ok) throw new Error(await res.text());
-        const data = (await res.json()) as OrderMin;
-        setOrder(data);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [orderId]);
-
-  const handlePay = async () => {
-    if (!orderId) {
-      alert("ID ordine mancante");
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_URL}/pay`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
-      });
-
-      if (!res.ok) {
-        console.error(await res.text());
-        alert(
-          "Inizializzazione del pagamento non riuscita (controlla la console)"
-        );
-        return;
-      }
-
-      const data = (await res.json()) as { url: string; sessionId: string };
-
-      if (!data.url) {
-        alert("URL di Stripe mancante nella risposta");
-        return;
-      }
-
-      window.location.href = data.url;
-    } catch (e) {
-      console.error(e);
-      alert("Errore di rete (verifica che il backend sia in esecuzione)");
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="border-b border-border">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-accent" />
-            <span className="font-semibold text-lg">Checkout sicuro</span>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <main className="flex-1 flex items-center justify-center">
-        <div className="container mx-auto px-4 py-16">
-          <div className="max-w-2xl mx-auto text-center animate-fade-in">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-accent/10 mb-8">
-              <Lock className="h-10 w-10 text-accent" />
-            </div>
-
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4 tracking-tight">
-              Checkout sicuro
-            </h1>
-
-            {loading && (
-              <p className="text-lg text-muted-foreground mb-10">
-                Caricamento del tuo ordine...
-              </p>
-            )}
-
-            {error && <p className="text-lg text-red-500 mb-10">{error}</p>}
-
-            {order && (
-              <>
-                <p className="text-sm text-muted-foreground mb-2">ID ordine</p>
-                <p className="font-mono text-xs break-all mb-6">{order.id}</p>
-
-                <div className="text-3xl font-bold text-foreground mb-8">
-                  {order.total} {order.currency}
-                </div>
-
-                <Button
-                  onClick={handlePay}
-                  size="lg"
-                  className="bg-primary text-primary-foreground hover:bg-primary/90 px-8 py-6 text-lg font-medium shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:shadow-primary/30"
-                >
-                  <CreditCard className="mr-2 h-5 w-5" />
-                  Paga ora
-                </Button>
-
-                {/* Trust indicators */}
-                <div
-                  className="mt-16 grid grid-cols-3 gap-6 max-w-lg mx-auto animate-slide-up"
-                  style={{ animationDelay: "0.2s" }}
-                >
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">
-                      256-bit
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Crittografia SSL
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">
-                      PCI
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Conforme
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-foreground">
-                      100%
-                    </div>
-                    <div className="text-sm text-muted-foreground">Sicuro</div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border py-6">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          Protetto da misure di sicurezza conformi agli standard del settore
-        </div>
-      </footer>
-    </div>
-  );
-};
-
-export default CheckoutLanding;
+export default function CheckoutLanding(){
+ const [params]=useSearchParams(),orderId=params.get("orderId")||"";
+ const [pairing,setPairing]=useState<Handoff|null>(null),[order,setOrder]=useState<OrderMin|null>(null),[message,setMessage]=useState(""),[busy,setBusy]=useState(false);
+ const common=commonAccessEnabled();
+ const [revision,setRevision]=useState(0);
+ const lock=useRef(false),mounted=useRef(true),current=useRef(orderId);current.current=orderId;
+ useEffect(()=>{mounted.current=true;setOrder(null);setPairing(null);setMessage("");const controller=new AbortController();
+  // No anonymous request and no automatic preparation/mutation on mount.
+  try{if(common){setBusy(true);void loadCommonOrder(orderId,controller.signal).then(o=>{if(!controller.signal.aborted)setOrder(o);}).catch(e=>{if(!controller.signal.aborted)setMessage(errorMessage(e));}).finally(()=>{if(!controller.signal.aborted)setBusy(false);});}
+  else {const a=readAttempt(orderId);setPairing(a.pairing||null);if(a.authorized)void readOrder(orderId,controller.signal).then(o=>{if(!controller.signal.aborted)setOrder(o);}).catch(e=>{if(!controller.signal.aborted)setMessage(errorMessage(e));});}}catch(e){setMessage(errorMessage(e));}
+  return()=>{mounted.current=false;controller.abort();};
+ },[orderId,common,revision]);
+ async function run(kind:"prepare"|"check"|"pay"|"renew"){
+  if(lock.current)return;lock.current=true;setBusy(true);setMessage("");
+  try{
+   if(kind==="renew"){const renewed=await renewPendingPairing(orderId);if(!renewed){const o=await readOrder(orderId);if(mounted.current&&current.current===orderId){setPairing(readAttempt(orderId).pairing!);setOrder(o);}return;}if(mounted.current&&current.current===orderId)setPairing(null);}
+   if(kind==="prepare"||kind==="renew") {const p=await preparePairing(orderId);if(mounted.current&&current.current===orderId)setPairing(p);}
+   if(kind==="check"){const p=await checkPairing(orderId);if(mounted.current)setPairing(p);if(p.state==="approved"){const o=await readOrder(orderId);if(mounted.current)setOrder(o);}else if(mounted.current)setMessage("Attendi l'autorizzazione esplicita nella scheda Store.");}
+   if(kind==="pay"){const p=await pay(orderId);if(mounted.current)window.location.assign(p.url);}
+  }catch(e){if(mounted.current)setMessage(errorMessage(e));}
+  finally{lock.current=false;if(mounted.current)setBusy(false);}
+ }
+ return <div className="min-h-screen bg-background"><Navigation/><main className="max-w-xl mx-auto p-6 space-y-4"><h1 className="text-2xl font-bold">Checkout sicuro</h1>
+ <p>Ordine: {orderId}</p>
+ {common&&!order&&<section><p>Verifica accesso allo stesso ordine. Se i dati sono persi, torna al Store o richiedi un recupero verificato. Nessun nuovo ordine.</p><Button disabled={busy} onClick={()=>setRevision(v=>v+1)}>Ripeti verifica accesso</Button></section>}
+ {!common&&!order && <section><p>Abbina questa scheda al Store. Nessun accesso è consentito con il solo numero d'ordine.</p>
+ {!pairing ? <Button disabled={busy||!orderId} onClick={()=>void run("prepare")}>Prepara abbinamento</Button> : <div className="space-y-3"><p>Copia nel Store: <code>{pairing.pairingId}</code></p><p>Codice di controllo: <strong>{pairing.phrase}</strong></p><p>Nel Store confronta i codici e autorizza esplicitamente. Torna poi a questa stessa scheda.</p><Button disabled={busy} onClick={()=>void run("check")}>Verifica autorizzazione</Button>
+ {pairing.state==="pending"&&Date.parse(pairing.expiresAt)<=Date.now()&&<Button disabled={busy} onClick={()=>void run("renew")}>Prepara un nuovo abbinamento scaduto</Button>}</div>}</section>}
+ {order && <section><p>Totale: {formatMoney(order.total,order.currency)}</p><p>Pagamento: {order.paymentStatus}</p>{order.paymentStatus==="PENDING"&&<Button disabled={busy} onClick={()=>void run("pay")}>Paga o riprendi lo stesso pagamento</Button>}</section>}
+ {busy&&<p role="status">Verifica in corso...</p>}{message&&<p role="alert">{message}</p>}
+ <p className="text-sm">Conserva questa scheda durante il pagamento. Dopo un timeout riprova con lo stesso ordine. Se i dati della scheda sono persi, torna al Store per autorizzare un nuovo abbinamento; non creare un altro ordine.</p>
+ </main></div>;
+}

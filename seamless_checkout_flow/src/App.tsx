@@ -16,7 +16,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.VITE_ROUTER_BASENAME ?? "/"}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/checkout-landing" element={<CheckoutLanding />} />
