@@ -287,7 +287,7 @@ const ProductDetail = () => {
               <div className="space-y-3 border-t pt-6">
                 <div className="flex items-center gap-3 text-sm">
                   <Truck className="h-5 w-5 text-muted-foreground" />
-                  <span>Spedizione gratuita sopra €99,90</span>
+                  <span>Spedizione gratuita a partire da €200,00</span>
                 </div>
                 <div className="flex items-center gap-3 text-sm">
                   <RefreshCcw className="h-5 w-5 text-muted-foreground" />
@@ -318,8 +318,8 @@ const ProductDetail = () => {
               </TabsContent>
               <TabsContent value="shipping" className="mt-6">
                 <p className="text-muted-foreground">
-                  Spedizione gratuita per ordini superiori a €99,90. Consegna in
-                  24-48h in tutta Italia. Reso gratuito entro 30 giorni
+                  Spedizione gratuita per ordini a partire da €200,00. Consegna stimata in
+                  7–10 giorni in tutta Italia. Reso gratuito entro 30 giorni
                   dall&apos;acquisto.
                 </p>
               </TabsContent>

@@ -17,7 +17,7 @@ const slides: HeroSlide[] = [
   {
     id: 1,
     eyebrow: "ELEVATE YOUR STYLE",
-    title: "Oltre 10.000 Prodotti\nin pronta consegna",
+    title: "Oltre 10.000 Prodotti\ncon consegna stimata in 7–10 giorni",
     subtitle:
       "Sandali, sneakers e streetwear di brand iconici, spediti velocemente in tutta Italia.",
     ctaLabel: "Scopri Di Più",

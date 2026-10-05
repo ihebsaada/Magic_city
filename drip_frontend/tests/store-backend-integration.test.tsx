@@ -1,3 +1,4 @@
+import {Select} from '@/components/ui/select';
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { create, act, type ReactTestRenderer } from 'react-test-renderer';
@@ -114,7 +115,7 @@ test('catalogue UI pages on the server and resets page on sort change', async ()
   await act(async () => { await pause(); });
   await act(async () => { renderer!.root.findAllByType('button').find((button) => button.children.includes('Successiva'))!.props.onClick(); await pause(); });
   assert.equal(calls.at(-1)!.searchParams.get('page'), '2'); assert.match(JSON.stringify(renderer!.toJSON()), /Page 2/);
-  await act(async () => { renderer!.root.findAllByType('select')[1].props.onChange({ target: { value: 'price-desc' } }); await pause(); });
+  await act(async () => { renderer!.root.findAllByType(Select)[1].props.onValueChange('price-desc'); await pause(); });
   assert.equal(calls.at(-1)!.searchParams.get('page'), '1'); assert.equal(calls.at(-1)!.searchParams.get('sort'), 'price-desc');
 });
 test('collection covers load one card and never the entire collection', async () => {
@@ -405,7 +406,7 @@ test('saved attempt with an empty current cart remains visible and resumes its f
  sessionStorage.setItem('magic-city-drip-checkout-pending',JSON.stringify(snapshot));let creates=0;
  globalThis.fetch=async(url)=>{if(String(url).includes('/checkout/intent')){creates++;throw Error('No new order');}assert.ok(String(url).includes('/orders/synthetic-order/min'));return Response.json({id:result.orderId,total:10,currency:'EUR',paymentStatus:'PENDING'});};
  act(()=>{renderer=create(<MemoryRouter><QueryClientProvider client={client()}><CartProvider><Cart/></CartProvider></QueryClientProvider></MemoryRouter>);});
- assert.match(JSON.stringify(renderer!.toJSON()),/Tentativo salvato/);
+ assert.match(JSON.stringify(renderer!.toJSON()),/Il tuo ordine/);
  await act(async()=>{await renderer!.root.findAllByType('button').find(b=>b.props.className?.includes('w-full mt-6'))!.props.onClick();});
  assert.equal(creates,0);assert.equal(loadCheckoutAttempt()!.result!.orderId,result.orderId);assert.deepEqual(loadCheckoutAttempt()!.body,body);assert.equal(loadCheckoutAttempt()!.key,snapshot.key);
 });

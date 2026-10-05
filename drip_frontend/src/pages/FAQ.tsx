@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 const faqs = [
   {
     question: "Quanto tempo ci vuole per la spedizione?",
-    answer: "Spediamo in tutta Italia in 24-48 ore lavorative. Per ordini superiori a €99,90 la spedizione è gratuita. Offriamo anche spedizioni express in 24h per alcune aree.",
+    answer: "Consegna stimata in 7–10 giorni in tutta Italia. Per ordini a partire da €200,00 la spedizione è gratuita.",
   },
   {
     question: "Posso restituire o cambiare un prodotto?",

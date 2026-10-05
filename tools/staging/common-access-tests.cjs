@@ -137,5 +137,5 @@ test("new local attempt persists its route once without putting it in the API bo
 });
 
 test("common Checkout no longer displays a disabled-preview warning beside an enabled payment",()=>{
- const source=require('node:fs').readFileSync(path.join(checkout,'src/pages/CheckoutLanding.tsx'),'utf8');assert.ok(!source.includes('Pagamento non disponibile in questa anteprima locale'));assert.ok(source.includes('disabled={busy}'));
+ const source=require('node:fs').readFileSync(path.join(checkout,'src/pages/CheckoutLanding.tsx'),'utf8');assert.ok(!source.includes('Pagamento non disponibile in questa anteprima locale'));assert.ok(source.includes('disabled={busy || order.paymentStatus !== "PENDING"}'));
 });

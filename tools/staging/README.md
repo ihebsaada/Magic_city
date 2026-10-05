@@ -1,5 +1,38 @@
 # Staging local — démarrage et guide manuel
 
+## Restauration historique et transfert automatique - 5 octobre 2026
+
+Pour tester le nouveau canal entre les deux origines locales, sans appairage manuel :
+
+```powershell
+node tools/staging/start.cjs --automatic-handoff
+```
+
+Store : http://127.0.0.1:5173/catalog ; Checkout : http://127.0.0.1:5174/.
+Le lanceur active explicitement VITE_AUTOMATIC_HANDOFF dans les deux applications
+et desactive le transfert commun pour ce mode. Le mode sans option reste conserve.
+Le canal ouvre une nouvelle fenetre depuis le clic Store, avant les awaits.
+Autoriser les popups pour ces seules origines de test. Aucun token dans les URLs.
+
+Utiliser un nouveau profil de test et un nouveau run sans effacer les anciens.
+Choisir stage-001 M/Blue, une unite, STAGE10, puis verifier EUR 9,90.
+Cliquer Proceder : verifier le spinner historique, la fenetre Checkout,
+l'autorisation scoped sans copie/code et le montant EUR 9,90. Recharger Checkout
+pendant le transfert ; la meme reference et le meme credential doivent reprendre.
+Verifier popup bloque, fermeture, origine incorrecte, autre commande et timeout :
+blocage explicite, aucun ordre ou paiement cree pour contourner l'erreur.
+Payer uniquement dans le simulateur local puis confirmer depuis le backend.
+Verifier meme session, retour exact, consommation stock/remise unique et panier
+Store conserve jusqu'a lecture PAID autorisee. Ne pas copier les headers sensibles.
+
+Le Mirror Shop retrouve ses cinq mockups et son propre panier historique. Son
+paiement autonome reste explicitement bloque : aucune facturation d'un prix client
+ni mapping de variante invente. Ce point interdit de declarer la restauration
+fonctionnelle complete. Les tests HTTP/VM ne remplacent pas les clics navigateur.
+Tester desktop et mobile, cartes/hover/navigation, spinner, reload/retour/fermeture,
+stockage indisponible et COOP/popup. Aucun navigateur disponible dans cette session.
+Voir FINAL_HISTORICAL_PARITY_VALIDATION.md pour les limites et le rapport final.
+
 Les outils de ce dossier utilisent uniquement des données synthétiques, PostgreSQL
 sur 127.0.0.1 et un Stripe simulé. Aucun déploiement public.
 La correction limitée du contrôle d'URL Checkout autorise le simulateur uniquement
@@ -250,3 +283,65 @@ Voir [matrice, diagnostic et validation finale](CHECKOUT_COMPATIBILITY_VALIDATIO
 Les tentatives historiques ne sont pas transférées automatiquement. Les associations
 communes déjà publiées sont conservées. Ne pas utiliser une nouvelle commande
 pour résoudre un conflit de session ou un panier courant différent de la demande figée.
+
+## Parcours final local (5 octobre 2026)
+
+La cible finale utilise une navigation normale dans le meme onglet et un ticket
+serveur ephemere. Le Mirror Shop est uniquement une simulation frontend : son
+bouton final ne cree ni commande ni paiement, et conserve son panier USD.
+
+Depuis Magic_city_git :
+
+```powershell
+node tools/staging/start.cjs --final-flow --verify
+node tools/staging/start.cjs --final-flow
+```
+
+Le premier utilise un nouveau cluster synthetique, verifie le nouveau protocole
+et arrete ses propres processus. Le second reste ouvert jusqu'a Ctrl+C. Tous les
+clusters sont conserves. Pour garder une tentative existante, reprendre son run
+avec --resume=run-... et --final-flow ; ne pas changer de base pour la reprendre.
+Les commandes/scenarios historiques restent disponibles sans --final-flow.
+--automatic-handoff est un harness anterieur, pas le happy path final.
+
+Store : http://127.0.0.1:5173/catalog. Checkout : http://127.0.0.1:5174/.
+API et simulateur restent sur 4100 et 4101. --final-flow exige un guest access
+valide pour les lectures/paiements ; aucun acces par orderId seul. Le launcher
+injecte VITE_NAVIGATION_HANDOFF_ENABLED=true dans les deux applications et une
+cle NAVIGATION_HANDOFF_SECRET strictement synthetique dans le backend. Les builds
+publics staging peuvent activer ce flag uniquement avec MODE=staging. Le build
+production normal le desactive ; le simulateur reste DEV seulement.
+
+Livraison serveur : 5,00 EUR si subtotal marchandises AVANT remise <200,00 EUR,
+sinon zero. Exemple stage-001 M/Blue, STAGE10 : 11-1,10+5,00 = 14,90 EUR.
+Le seuil gratuit de 200,00 EUR reste gratuit meme apres une remise. Aucun ancien
+ordre n'est recalcule. La livraison est representee par total-(originalTotal-
+discountAmount) ; les snapshots existants restent immuables. Aucune migration
+livraison. Stripe conserve une ligne agregee sans composition produits.
+
+Le ticket temporaire est dans le fragment uniquement ; le bootstrap HTML retire
+ce fragment avant les modules. Ne pas copier la reference ou les credentials.
+Une perte de reponse reprend la meme commande, cle et grant destinataire. Un
+ticket expire avant redemption bloque explicitement ; aucun nouvel ordre de secours.
+
+Verification manuelle desktop/mobile : navigation meme onglet sans opener,
+spinner historique, pagination clavier/touch/loading, quantites/variantes/remise,
+14,90 EUR dans Checkout/simulateur/confirmation, refresh et retour Store. Ajouter
+un article avant le retour : le panier modifie doit etre conserve integralement,
+y compris lors d'une modification puis restauration des memes quantites. Seul
+un panier identique sans modification depuis creation peut etre vide apres PAID
+verifie avec le grant. Pour les anciennes tentatives sans snapshot, conserver.
+
+Mirror : cinq offres, USD, ajout/quantites/suppression/persistance ; clic final
+sans fetch, navigation paiement ni succes invente. Tester expiration, autre ordre,
+autre destinataire, reload pendant redemption, reponses perdues et conservation
+des sessions. Network/console : aucun credential durable ou PII dans URL/logs.
+Pas de HAR brut ni copie des stockages. La CSP locale bloque les images externes
+historiques : leur rendu distant n'est pas certifie par le harness loopback.
+
+La migration locale 20261005120000_add_navigation_handoff n'a ete appliquee
+qu'aux nouvelles bases locales isolees des tests. Render reste hors scope.
+Avant tout futur deploy : revue/migration distante explicitement autorisee,
+cle dediee stable, flags coordonnes, CSP du bootstrap et validation navigateur.
+
+Rapport final : [FINAL_STAGING_UI_SECURITY_VALIDATION.md](FINAL_STAGING_UI_SECURITY_VALIDATION.md).

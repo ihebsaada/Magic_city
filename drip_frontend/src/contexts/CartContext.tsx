@@ -1,3 +1,4 @@
+import {markCartEdit} from '@/lib/paidCart';
 import {
   createContext,
   useContext,
@@ -81,6 +82,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     const variant = selectedVariant(product, size, color);
     if (product.variants && (!variant || variant.stock < quantity)) return;
     if (variant) product = variantProduct(product, variant);
+    markCartEdit();
     setItems((prev) => {
       const existingIndex = prev.findIndex((item) =>
         sameLine(item, product.id, size, color)
@@ -102,6 +104,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const removeFromCart = (productId: number, size?: string, color?: string) => {
+    markCartEdit();
     setItems((prev) =>
       prev.filter((item) => !sameLine(item, productId, size, color))
     );
@@ -117,6 +120,7 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       removeFromCart(productId, size, color);
       return;
     }
+    markCartEdit();
     setItems((prev) =>
       prev.map((item) =>
         sameLine(item, productId, size, color) && Number.isInteger(quantity) && quantity <= 99 &&
@@ -125,9 +129,10 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
-  const clearCart = useCallback(() => setItems([]), []);
+  const clearCart = useCallback(() => {markCartEdit();setItems([]);}, []);
   const replaceItems = useCallback((next: CartItem[]) => setItems(next), []);
   const updateOptions = (productId: number, size: string | undefined, color: string | undefined, nextSize: string | undefined, nextColor: string | undefined) => {
+    markCartEdit();
     setItems((prev) => mergeCartLines(prev.map((item) => sameLine(item, productId, size, color)
       ? { ...item, product: selectedVariant(item.product, nextSize, nextColor)
         ? variantProduct(item.product, selectedVariant(item.product, nextSize, nextColor)!) : item.product,

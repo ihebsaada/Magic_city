@@ -25,7 +25,7 @@ class LocalStripe{
        if(JSON.stringify(canonical(rows[0].request))!==JSON.stringify(canonical(p)))throw new Error("Synthetic Stripe idempotency conflict");
       }return rows[0].payload;}
      const id="cs_stage_"+randomUUID().replaceAll("-","");
-     const s={id,url:"http://127.0.0.1:4101/session/"+id,mode:"payment",status:"open",payment_status:"unpaid",metadata:p.metadata,
+     const s={id,livemode:false,url:"http://127.0.0.1:4101/session/"+id,mode:"payment",status:"open",payment_status:"unpaid",metadata:p.metadata,
       amount_total:p.line_items[0].price_data.unit_amount,currency:p.line_items[0].price_data.currency,expires_at:p.expires_at,stagingReturnBase:paymentContext.getStore()||"http://127.0.0.1:5174/order-confirmation"};
      await tx.$executeRawUnsafe('INSERT INTO staging_simulator.sessions(id,key,request,payload) VALUES($1,$2,$3::jsonb,$4::jsonb)',id,o.idempotencyKey,JSON.stringify(p),JSON.stringify(s));
      return s;
@@ -55,7 +55,7 @@ app.use((req,res,next)=>{
  next();
 });
 app.get("/__staging/image.svg",(_req,res)=>res.type("image/svg+xml").send('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="#d4d4d8"/><text x="40" y="200">SYNTHETIC PRODUCT</text></svg>'));
-app.get("/__staging/health",(_req,res)=>res.json({isolated:true,store:"http://127.0.0.1:5173",checkout:"http://127.0.0.1:5174",stripe:"local simulation",orderAccessRequired:false}));
+app.get("/__staging/health",(_req,res)=>res.json({isolated:true,store:"http://127.0.0.1:5173",checkout:"http://127.0.0.1:5174",stripe:"local simulation",orderAccessRequired:process.env.STAGING_FINAL_FLOW==="true"}));
 app.post("/__staging/faults",express.json(),(req,res)=>{for(const k of Object.keys(req.body||{})){if(!["intentBefore","intentAfter","payBefore","payAfter","stripeBefore","stripeAfter","simCompleteAfter"].includes(k))return res.status(400).json({error:"INVALID_SYNTHETIC_FAULT"});faults[k]=true;}res.json({ok:true});});
 app.use((req,res,next)=>{
  if(req.method!=="POST"||req.path!=="/api/pay")return next();
@@ -65,10 +65,10 @@ app.use((req,res,next)=>{
   void getSession(body.sessionId).then(s=>{if(returnBase(s)!==destination){res.status(409);original({error:"STAGING_RETURN_CONFLICT"});}else original(body);}).catch(()=>{res.status(503);original({error:"STAGING_RETURN_RETRY"});});return res;};
  return paymentContext.run(destination,next);
 });
-app.use(createApp({logging:false,handoffOrigins:{store:"http://127.0.0.1:5173",checkout:"http://127.0.0.1:5174"}}));
+app.use(createApp({logging:false,staging:process.env.STAGING_FINAL_FLOW==="true",orderAccessRequired:process.env.STAGING_FINAL_FLOW==="true",handoffOrigins:{store:"http://127.0.0.1:5173",checkout:"http://127.0.0.1:5174"}}));
 sim.use(express.json());
 async function emit(id,type="checkout.session.completed",eventId){
- const s=await getSession(id),event={id:eventId||"evt_stage_"+id+"_"+type.replaceAll(".","_"),type,data:{object:s}};
+ const s=await getSession(id),event={id:eventId||"evt_stage_"+id+"_"+type.replaceAll(".","_"),type,livemode:false,data:{object:s}};
  const payload=JSON.stringify(event),sig=signer.webhooks.generateTestHeaderString({payload,secret:process.env.STRIPE_WEBHOOK_SECRET});
  const r=await fetch("http://127.0.0.1:4100/api/stripe/webhook",{method:"POST",headers:{"Content-Type":"application/json","Stripe-Signature":sig},body:payload});
  return {status:r.status,body:await r.json()};

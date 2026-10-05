@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-for (const entry of ["tests/product-loading.test.tsx", "tests/checkout-validation.test.tsx", "tests/store-backend-integration.test.tsx", "tests/store-handoff.test.tsx"]) {
+for (const entry of ["tests/product-loading.test.tsx", "tests/checkout-validation.test.tsx", "tests/store-backend-integration.test.tsx", "tests/store-handoff.test.tsx", "tests/historical-loading.test.tsx", "tests/automatic-handoff.test.ts"]) {
 const result = await build({
   absWorkingDir: root,
   entryPoints: [entry],
@@ -23,3 +23,6 @@ const child = spawnSync(process.execPath, ["--input-type=commonjs"], { cwd: root
 if (child.error) throw child.error;
 if (child.status !== 0) process.exitCode = child.status ?? 1;
 }
+
+const nav=await build({absWorkingDir:root,entryPoints:['tests/navigation-handoff.test.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',alias:{'@':path.join(root,'src')},define:{'import.meta.env':JSON.stringify({MODE:'staging',VITE_NAVIGATION_HANDOFF_ENABLED:'true',VITE_CHECKOUT_ORIGIN:'https://checkout.example.invalid'})}});
+const run=spawnSync(process.execPath,['--input-type=commonjs'],{cwd:root,input:nav.outputFiles[0].text,stdio:['pipe','inherit','inherit']});if(run.status!==0)process.exitCode=run.status??1;

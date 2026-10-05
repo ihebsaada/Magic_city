@@ -1,3 +1,4 @@
+import {cartRevision} from './paidCart';
 import { checkoutPayload, prepareOrderAccess, submitCheckoutPayload, readOrderMinimal, type CheckoutPayload, type CheckoutIntentResponse } from '@/services/orderService';
 import { HttpError } from '@/services/request';
 
@@ -5,6 +6,7 @@ const key = 'magic-city-drip-checkout-pending';
 const accessKey = 'magic-city-drip-order-access';
 export type CheckoutAttempt = {
   version: 1; key: string; body: CheckoutPayload; createdAt: string;
+  cartRevision?: string;
   checkoutMode?: 'common' | 'historical';
   token?: string; prepareExpiresAt?: string; calls: number; prepareCalls?: number;
   state: 'preparing' | 'prepared' | 'submitted' | 'success' | 'rejected' | 'blocked';
@@ -41,7 +43,7 @@ export function newCheckoutAttempt(body: CheckoutPayload, quotedTotal?: number):
   const previous = loadCheckoutAttempt();
   if (previous && previous.state !== 'rejected') throw new AttemptBlockedError('Riprendi il tentativo esistente prima di un nuovo acquisto.');
   const attempt: CheckoutAttempt = { version: 1, key: crypto.randomUUID(),
-    body: JSON.parse(JSON.stringify(body)) as CheckoutPayload, createdAt: new Date().toISOString(), calls: 0, prepareCalls: 0, state: 'preparing', quotedTotal,
+    body: JSON.parse(JSON.stringify(body)) as CheckoutPayload, cartRevision:cartRevision(), createdAt: new Date().toISOString(), calls: 0, prepareCalls: 0, state: 'preparing', quotedTotal,
     checkoutMode: import.meta.env.MODE === 'staging' && import.meta.env.DEV === true && import.meta.env.PROD === false &&
       import.meta.env.VITE_COMMON_CHECKOUT_ENABLED === 'true' && typeof window !== 'undefined' &&
       window.location.origin === 'http://127.0.0.1:5173' ? 'common' : 'historical' };
@@ -138,17 +140,22 @@ export function checkoutErrorMessage(error: unknown): string {
   if (error instanceof AttemptBlockedError) return error.message;
   if (error instanceof HttpError) {
     const messages: Record<string, string> = {
+      NAVIGATION_EXPIRED: "Ordine non disponibile. Contatta l'assistenza prima di riprovare.",
+      NAVIGATION_DENIED: "Non e possibile aprire questo ordine. Torna al negozio o contatta l'assistenza.",
+      NAVIGATION_CONFLICT: "Ordine da verificare. Contatta l'assistenza prima di riprovare.",
+      NAVIGATION_CONSUMED: "Questo ordine e gia stato aperto. Riprendilo dal Checkout precedente.",
+      NAVIGATION_RATE_LIMIT: "Troppe richieste. Attendi almeno un minuto prima di riprendere.",
       VARIANT_OUT_OF_STOCK: 'Stock non disponibile. Aggiorna il carrello prima di confermare.',
       DISCOUNT_UNAVAILABLE: 'Codice sconto scaduto o esaurito. Modifica il codice e conferma nuovamente.',
       IDEMPOTENCY_CONFLICT: 'Conflitto del tentativo. Non creare un nuovo ordine; contatta assistenza.',
       IDEMPOTENCY_EXPIRED: 'Tentativo scaduto. Recupera e verifica la vecchia richiesta con assistenza.',
-      ORDER_ACCESS_DENIED: 'Accesso non valido, scaduto o revocato. Serve un recupero verificato.',
+      ORDER_ACCESS_DENIED: "Ordine non disponibile. Contatta l'assistenza prima di riprovare.",
       RESERVATION_EXPIRED: 'Prenotazione scaduta. Verifica lo stato della richiesta prima di procedere.',
       ORDER_ACCESS_RATE_LIMIT: 'Troppe richieste. Attendi almeno un minuto prima di riprendere.',
     };
     if (error.code && messages[error.code]) return messages[error.code];
     if (error.status === 400) return 'Dati rifiutati. Controlla cliente, indirizzo, quantità e variante. Dopo una risposta incerta verifica il vecchio tentativo con assistenza.';
   }
-  return 'Risposta non disponibile. Riprendi lo stesso tentativo: dati, chiave e accesso saranno riutilizzati.';
+  return 'Risposta non disponibile. Riprova per riprendere il tuo ordine.';
 }
 export { checkoutPayload };

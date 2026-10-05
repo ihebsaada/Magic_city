@@ -78,6 +78,11 @@ let product,a,b,payResult;
  }finally{await db.guestOrderAccess.update({where:{tokenHash},data:{expiresAt:grant.expiresAt,revokedAt:grant.revokedAt}});}
  assert.equal((await client.loadCommonOrder(a.id)).id,a.id);
  });
+ await check("automatic cross-origin source modules approve scoped recipient over real isolated HTTP without new order or payment",async()=>{
+ const beforeOrders=await db.order.count(),beforePayments=await db.paymentAttempt.count();
+ const token=await require('./automatic-handoff-http.cjs')({order:a,storeOrigin:STORE,checkoutOrigin:CHECKOUT,api:API+'/api'});tokens.push(token);
+ assert.equal(await db.order.count(),beforeOrders);assert.equal(await db.paymentAttempt.count(),beforePayments);
+ });
  await check("explicit authenticated pairing, scoped recipient and no URL token",async()=>{
  const p=await pairing(a);const inspect=await call("/api/orders/"+a.id+"/handoffs/"+p.id+"/inspect",{method:"POST",token:a.token,body:{},origin:STORE});assert.equal(inspect.body.phrase,p.phrase);
  const wrong=await call("/api/orders/"+a.id+"/handoffs/"+p.id+"/approve",{method:"POST",body:{},origin:STORE});assert.equal(wrong.status,401);

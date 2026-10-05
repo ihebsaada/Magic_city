@@ -1,3 +1,5 @@
+import {Button} from '@/components/ui/button';
+import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import { useSearchParams } from 'react-router-dom';
 import { useCatalogue, useCollections } from '@/hooks/useProducts';
 import { cardAsProduct } from '@/services/productService';
@@ -29,48 +31,25 @@ export function CatalogueBrowser({ collection }: { collection?: string }) {
   const collections = useCollections();
   const products = query.data?.items ?? [];
   return <>
-    <form className="mb-6 flex flex-wrap gap-3" key={params.toString()} onSubmit={(event) => {
-      event.preventDefault();
-      const data = new FormData(event.currentTarget);
-      const next = new URLSearchParams(params);
-      for (const name of ['search', 'vendor', 'size', 'color', 'minPrice', 'maxPrice']) {
-        const value = String(data.get(name) ?? '').trim();
-        if (value) next.set(name, value); else next.delete(name);
-      }
-      next.delete('page'); setParams(next);
-    }}>
-      {['search', 'vendor', 'size', 'color', 'minPrice', 'maxPrice'].map((name) => <label key={name} className="text-sm">
-        {{ search: 'Ricerca', vendor: 'Marca', size: 'Taglia', color: 'Colore', minPrice: 'Prezzo da', maxPrice: 'Prezzo fino' }[name]}
-        <input className="block rounded border p-2 bg-background" name={name} defaultValue={params.get(name) ?? ''}
-          maxLength={128} type={name.includes('Price') ? 'number' : 'text'} min={name.includes('Price') ? 0 : undefined} step={name.includes('Price') ? '0.01' : undefined} />
-      </label>)}
-      <button type="submit" className="rounded border px-4">Applica</button>
-    </form>
-    <div className="mb-6 flex flex-wrap gap-4">
-      {!collection && <label>Collezione <select className="border rounded p-2 bg-background" value={params.get('collection') ?? ''} onChange={(e) => update('collection', e.target.value)}>
-        <option value="">Tutte le collezioni</option>
-        {(collections.data ?? []).map((item) => <option key={item.handle} value={item.handle}>{item.title}</option>)}
-      </select></label>}
-      <label>Ordina <select className="border rounded p-2 bg-background" value={sort} onChange={(e) => update('sort', e.target.value)}>
-        {sorts.map((value) => <option key={value} value={value}>{{ featured: 'In evidenza', name: 'Nome: A-Z', 'name-desc': 'Nome: Z-A', 'price-asc': 'Prezzo: crescente', 'price-desc': 'Prezzo: decrescente', 'id-asc': 'ID crescente', 'id-desc': 'ID decrescente' }[value]}</option>)}
-      </select></label>
-      <label>Disponibilità <select className="border rounded p-2 bg-background" value={params.get('inStock') ?? ''} onChange={(e) => update('inStock', e.target.value)}>
-        <option value="">Tutti</option><option value="true">Disponibili</option><option value="false">Esauriti</option>
-      </select></label>
-      <label>Selezione <select className="border rounded p-2 bg-background" value={params.get('filter') ?? ''} onChange={(e) => update('filter', e.target.value)}>
-        <option value="">Tutti i prodotti</option><option value="sale">In saldo</option><option value="new">Novità</option>
-      </select></label>
+    <div className="mb-8 flex flex-wrap gap-4">
+      {!collection && <div className="w-full sm:w-48"><Select value={params.get('collection') ?? 'all'} onValueChange={value=>update('collection',value==='all'?'':value)}>
+      <SelectTrigger><SelectValue placeholder="Tutte le collezioni"/></SelectTrigger><SelectContent><SelectItem value="all">Tutte le collezioni</SelectItem>
+      {(collections.data ?? []).map(item=><SelectItem key={item.handle} value={item.handle}>{item.title}</SelectItem>)}</SelectContent></Select></div>}
+      {!collection && <div className="w-full sm:w-48"><Select value={sort} onValueChange={value=>update('sort',value)}>
+      <SelectTrigger><SelectValue placeholder="Ordina per"/></SelectTrigger><SelectContent>
+      <SelectItem value="featured">In evidenza</SelectItem><SelectItem value="price-asc">Prezzo: crescente</SelectItem><SelectItem value="price-desc">Prezzo: decrescente</SelectItem><SelectItem value="name">Nome: A-Z</SelectItem>
+      </SelectContent></Select></div>}
+      <div className="ml-auto text-sm text-muted-foreground">{query.data ? query.data.pagination.total + (collection ? ' prodotti disponibili' : ' prodotti') : 'Caricamento...'}</div>
     </div>
     {!collection && <QueryFeedback error={collections.isError} hasData={collections.data !== undefined} onRetry={() => { void collections.refetch(); }} />}
     {unsupportedNew ? <p role="status">Le novità non sono ancora disponibili nel catalogo.</p> : <>
       <QueryFeedback loading={query.isFetching} error={query.isError} hasData={query.data !== undefined} onRetry={() => { void query.refetch(); }} />
-      <p className="mb-4 text-sm text-muted-foreground">{query.data ? `${query.data.pagination.total} prodotti` : 'Caricamento...'}</p>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{products.map((item) => <ProductCard key={item.id} product={cardAsProduct(item)} />)}</div>
-      {!query.isPending && !query.isError && !products.length && <p className="py-12 text-center">Nessun prodotto trovato</p>}
-      {query.data && <nav aria-label="Pagine catalogo" className="mt-8 flex justify-center items-center gap-4">
-        <button className="border rounded p-2" disabled={page <= 1 || query.isFetching} onClick={() => update('page', String(page - 1))}>Precedente</button>
-        <span>Pagina {page} / {Math.max(1, query.data.pagination.totalPages)}</span>
-        <button className="border rounded p-2" disabled={!query.data.pagination.hasNext || query.isFetching} onClick={() => update('page', String(page + 1))}>Successiva</button>
+      {!query.isPending && !query.isError && !products.length && <div className="py-16 text-center"><p className="text-muted-foreground">{collection ? "Nessun prodotto trovato in questa collezione" : "Nessun prodotto trovato"}</p></div>}
+      {query.data && <nav aria-label="Pagine catalogo" aria-busy={query.isFetching} className="mt-10 flex flex-wrap justify-center items-center gap-3 min-h-12">
+        <Button variant="outline" className="min-h-11 min-w-24 rounded-full px-5" disabled={page <= 1 || query.isFetching} onClick={() => update('page', String(page - 1))}>Precedente</Button>
+        <span aria-current="page" aria-live="polite" className="min-w-28 text-center text-sm font-medium tabular-nums">Pagina {page} / {Math.max(1, query.data.pagination.totalPages)}</span>
+        <Button variant="outline" className="min-h-11 min-w-24 rounded-full px-5" disabled={!query.data.pagination.hasNext || query.isFetching} onClick={() => update('page', String(page + 1))}>Successiva</Button>
       </nav>}
     </>}
   </>;

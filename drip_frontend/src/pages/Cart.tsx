@@ -1,3 +1,5 @@
+import {rememberPaidCart} from '@/lib/paidCart';
+import {navigationEnabled, navigateToCheckout, shippingEstimate} from '@/lib/navigationHandoff';
 import { CheckoutHandoff } from '@/components/CheckoutHandoff';
 import { prepareCommonCheckout } from '@/lib/commonCheckout';
 import { Link } from "react-router-dom";
@@ -45,6 +47,7 @@ const Cart = () => {
   const [customerEmail, setCustomerEmail] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const checkoutInFlight = useRef(false);
+
   const currentItems = useRef(items);
   currentItems.current = items;
   const verification = useRef<AbortController>();
@@ -111,7 +114,7 @@ const Cart = () => {
 
   const finalSubtotal = Math.max(subtotal - discountAmount, 0);
 
-  const shipping = 0; // Backend lots 3-8 keep delivery charges inactive.
+  const shipping = shippingEstimate(subtotal);
   const totalWithDiscount = finalSubtotal + shipping;
   async function continueCheckout(result: CheckoutIntentResponse) {
     const controller = new AbortController();
@@ -127,7 +130,10 @@ const Cart = () => {
       return;
     }
     setChangedTotal(null);
+    const saved=loadCheckoutAttempt();
+    if(saved?.cartRevision){rememberPaidCart(result.orderId,saved.body.items.map(line=>({product:{id:line.productId},quantity:line.quantity,selectedSize:line.selectedSize,selectedColor:line.selectedColor})) as typeof items,saved.cartRevision);}
     try { localStorage.setItem('lastOrderId', result.orderId); } catch { /* Credentials remain in the durable attempt. */ }
+    if(navigationEnabled()){const transfer=new AbortController();verification.current=transfer;try{await navigateToCheckout(result.orderId,transfer.signal);}finally{transfer.abort();}return;}
     const commonUrl=prepareCommonCheckout(result.orderId);
     if(commonUrl){window.location.assign(commonUrl);return;}
     setHandoffOrder(result.orderId);
@@ -135,6 +141,7 @@ const Cart = () => {
 
   const handleCheckout = async () => {
     if (isPending || checkoutInFlight.current) return;
+
     if (hasSavedAttempt) {
       checkoutInFlight.current = true;
       try {
@@ -218,7 +225,7 @@ const Cart = () => {
         name: customer.name, phone: shippingInfo.phone || undefined,
         address1: shippingInfo.address1, address2: shippingInfo.address2 || undefined,
         city: shippingInfo.city, zip: shippingInfo.zip, state: shippingInfo.state || undefined, country: shippingInfo.country,
-      }), Math.max(verified.items.reduce((sum, item) => sum + Math.round(item.product.price * 100) * item.quantity, 0) / 100 - verifiedDiscount, 0));
+      }), Math.max(verified.items.reduce((sum, item) => sum + Math.round(item.product.price * 100) * item.quantity, 0) / 100 - verifiedDiscount, 0) + shippingEstimate(verified.items.reduce((sum, item) => sum + Math.round(item.product.price * 100) * item.quantity, 0) / 100));
       setHasSavedAttempt(true);
       submitted = true;
       await continueCheckout(await checkoutIntent());
@@ -273,7 +280,7 @@ const Cart = () => {
       </div>
 
       {hasSavedAttempt && <p role="status" className="mb-4 text-sm">
-        Tentativo salvato: la ripresa usa i dati e lo sconto già confermati, non il carrello o il modulo mostrati ora.
+        Il tuo ordine e' pronto: continua con gli articoli e lo sconto gia confermati.
         Un carrello vuoto non annulla l'ordine. Nessun nuovo ordine viene creato durante la ripresa.
       </p>}
       <div className="grid lg:grid-cols-3 gap-8">
@@ -580,7 +587,7 @@ const Cart = () => {
               try { confirmCheckoutTotal(changedTotal); setChangedTotal(null); void handleCheckout(); }
               catch (error) { setFormError(checkoutErrorMessage(error)); }
             }}>Conferma il totale di €{changedTotal.toFixed(2)} e continua</button>}
-            {hasSavedAttempt && !formError && <p role="alert" className="text-xs text-destructive mb-3">Tentativo salvato. La ripresa riutilizza i dati originali anche se modifichi il carrello o il modulo. Non creare un nuovo ordine.</p>}
+            {hasSavedAttempt && !formError && <p role="alert" className="text-xs text-destructive mb-3">Il tuo ordine e' pronto. Continua per completare l'acquisto.</p>}
 
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
@@ -597,7 +604,7 @@ const Cart = () => {
 
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Spedizione</span>
-                <span>{shipping === 0 ? "Gratuita" : "€9,90"}</span>
+                <span>{shipping === 0 ? "Gratuita" : `€${shipping.toFixed(2)}`}</span>
               </div>
 
               <div className="border-t border-border pt-3 mt-3">
@@ -614,7 +621,7 @@ const Cart = () => {
               onClick={handleCheckout}
               disabled={verifying || isPending}
             >
-              {verifying ? "Verifica prezzi e disponibilità..." : isPending ? "Reindirizzamento..." : hasSavedAttempt ? "Riprendi lo stesso tentativo" : "Procedi al Checkout"}
+              {verifying ? "Verifica prezzi e disponibilità..." : isPending ? "Reindirizzamento..." : hasSavedAttempt ? "Riprendi il tuo ordine" : "Procedi al Checkout"}
             </Button>
 
             {hasSavedAttempt && !checkoutUncertain && <button className="mt-3 underline text-sm" onClick={() => {

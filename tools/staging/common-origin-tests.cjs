@@ -5,6 +5,8 @@ async function text(url){const r=await fetch(url);assert.equal(r.status,200,url)
 (async()=>{
  await check("Store and prefixed Checkout serve distinct module entrypoints",async()=>{
  const store=await text(origin+"/catalog"),checkout=await text(origin+"/checkout/checkout-landing");
+ assert.ok(!store.headers.get('content-security-policy').includes('images.unsplash.com'));
+ for(const page of [checkout,await text(legacy+'/')]){const csp=page.headers.get('content-security-policy');assert.ok(csp.includes("img-src 'self' http://127.0.0.1:4100 data: https://images.unsplash.com;"));assert.ok(!csp.includes('img-src *'));}
  assert.match(store.body,/src="\/src\/main.tsx"/);assert.match(checkout.body,/src="\/checkout\/src\/main.tsx"/);
  assert.equal(checkout.headers.get("referrer-policy"),"no-referrer");assert.match(checkout.headers.get("content-security-policy"),/default-src 'self'/);
  });

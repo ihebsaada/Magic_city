@@ -1,7 +1,7 @@
 import { Instagram } from "lucide-react";
 
 const promoText =
-  "Spedizione gratuita a partire da 99,90 € · Sconto -20% sopra 390 €";
+  "Spedizione gratuita a partire da 200,00 € · Sconto -20% sopra 390 €";
 
 export const TopBar = () => {
   return (

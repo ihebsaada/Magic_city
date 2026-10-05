@@ -19,9 +19,9 @@ export function CollectionCard({ collection, showCount = false }: {
           <div className="absolute inset-0 bg-gradient-to-t from-primary/90 to-transparent" />
         </div>
         <div className="absolute bottom-0 left-0 right-0 p-6 text-primary-foreground">
-          <h2 className="mb-2 font-serif text-2xl font-bold">{collection.title}</h2>
-          {showCount && <p className="mb-3 text-sm">{collection.productsCount} prodotti</p>}
-          <span className="inline-flex items-center text-sm font-medium">Scopri la collezione<ArrowRight className="ml-2 h-4 w-4" /></span>
+          <h2 className={(showCount ? "mb-1" : "mb-2") + " font-serif text-2xl font-bold"}>{collection.title}</h2>
+          {showCount && <p className="mb-3 text-sm text-primary-foreground/80">{collection.productsCount} prodotti</p>}
+          <span className="inline-flex items-center text-sm font-medium transition-transform group-hover:translate-x-1">Scopri la collezione<ArrowRight className="ml-2 h-4 w-4" /></span>
         </div>
       </Link>
       {query.isError && <div role="alert" className="p-2 text-sm">
