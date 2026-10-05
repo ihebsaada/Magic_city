@@ -1,6 +1,15 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+(function(){
+ if(!location.hash.startsWith('#navigation='))return;
+ var value=location.hash.slice(12),order=new URLSearchParams(location.search).get('orderId');
+ history.replaceState(history.state,'',location.pathname+location.search);
+ if(!order||!/^[A-Za-z0-9_-]{1,128}$/.test(order)||!/^[A-Za-z0-9_-]{43}$/.test(value))return;
+ try{var key='drip-navigation-v1:'+order,raw=JSON.stringify({orderId:order,ticket:value}),old=sessionStorage.getItem(key);if(!old||old===raw)sessionStorage.setItem(key,raw);else sessionStorage.setItem(key,JSON.stringify({orderId:order,conflict:true}));}catch(_){}
+})();
+</script>
     <meta name="referrer" content="no-referrer" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

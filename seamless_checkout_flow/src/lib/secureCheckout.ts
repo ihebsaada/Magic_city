@@ -117,12 +117,12 @@ export async function confirm(orderId:string,sessionId:string,signal?:AbortSigna
 export function formatMoney(total:number,currency="EUR"){if(currency!=="EUR"||!Number.isFinite(total)||total<0)throw new CheckoutError(409,"ORDER_MISMATCH");return new Intl.NumberFormat("it-IT",{style:"currency",currency:"EUR"}).format(total);}
 export function errorMessage(e:unknown){
  if(e instanceof CheckoutError){
-  if(e.status===401)return "Accesso non disponibile. Riprendi l'abbinamento dal Store; se hai perso i dati, serve un recupero verificato (email non configurata).";
-  if(e.status===409)return "Ordine o sessione da verificare. Non creare un nuovo ordine. Richiedi assistenza.";
-  if(e.status===410)return "Abbinamento o ordine scaduto. Verifica lo stato prima di proseguire.";
+  if(e.status===401)return "Accesso non disponibile. Torna al negozio per riprendere il tuo ordine o contatta l'assistenza.";
+  if(e.status===409)return "Ordine o pagamento da verificare. Contatta l'assistenza prima di riprovare.";
+  if(e.status===410)return "Il tuo ordine non e piu disponibile per il pagamento. Contatta l'assistenza.";
   if(e.status===429)return "Attendi "+e.retryAfter+" secondi prima di riprovare.";
  }
- return "Connessione o verifica non disponibile. Riprova esplicitamente sullo stesso ordine; nessun nuovo ordine viene creato.";
+ return "Verifica non disponibile. Riprova per completare il tuo acquisto.";
 }
 
 export function storeCartUrl(){return storeUrl("/cart");}
@@ -149,4 +149,28 @@ export async function loadCommonOrder(orderId:string,signal?:AbortSignal):Promis
  const current=readAttempt(orderId);
  if((current.token&&current.token!==grant.token)||current.sessionId!==a.sessionId)throw new CheckoutError(409,"COMMON_ACCESS_CONFLICT");
  save({...current,token:grant.token,authorized:true});return order;
+}
+
+export function navigationEnabled(){return import.meta.env.MODE==='staging'&&import.meta.env.VITE_NAVIGATION_HANDOFF_ENABLED==='true';}
+export function loadNavigationOrder(orderId:string,signal?:AbortSignal):Promise<OrderMin>{
+ return single('navigation:'+orderId,async()=>{
+  if(!navigationEnabled())throw new CheckoutError(401,'ORDER_ACCESS_DENIED');
+  const a=readAttempt(orderId),key='drip-navigation-v1:'+orderId,raw=sessionStorage.getItem(key);
+  if(a.authorized){const order=await readOrder(orderId,signal);sessionStorage.removeItem(key);return order;}
+  let association:{orderId:string;ticket:string};try{association=JSON.parse(raw||'null');}catch{throw new CheckoutError(401,'ORDER_ACCESS_DENIED');}
+  if(!association||association.orderId!==orderId||!/^[A-Za-z0-9_-]{43}$/.test(association.ticket)||a.sessionId||a.pairing)throw new CheckoutError(401,'ORDER_ACCESS_DENIED');
+  save(a);
+  if(!a.token){if(a.prepareCalls>=3)throw new CheckoutError(503,'CHECKOUT_ASSISTANCE');a.prepareCalls++;save(a);
+   const p=await request<{accessToken:string;expiresAt:string}>('/order-access/prepare',a,{},signal);
+   if(!/^[A-Za-z0-9_-]{43}$/.test(p.accessToken)||!Number.isFinite(Date.parse(p.expiresAt)))throw new CheckoutError(503,'CHECKOUT_RETRY');
+   if(signal?.aborted)throw new DOMException('Aborted','AbortError');
+   const current=readAttempt(orderId);if(current.token||current.authorized||current.sessionId)throw new CheckoutError(409,'HANDOFF_CONFLICT');
+   a.token=p.accessToken;a.preparedUntil=p.expiresAt;save(a);
+  }
+  const result=await request<{orderId:string;authorized:boolean}>('/navigation-handoffs/redeem',a,{orderId,ticket:association.ticket},signal);
+  if(signal?.aborted)throw new DOMException('Aborted','AbortError');
+  const current=readAttempt(orderId);
+  if(result.orderId!==orderId||result.authorized!==true||current.token!==a.token||current.sessionId!==a.sessionId||sessionStorage.getItem(key)!==raw)throw new CheckoutError(409,'HANDOFF_CONFLICT');
+  save({...current,authorized:true});const order=await readOrder(orderId,signal);sessionStorage.removeItem(key);return order;
+ });
 }

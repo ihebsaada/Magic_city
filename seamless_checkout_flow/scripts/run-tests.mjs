@@ -26,3 +26,12 @@ if(navigationRun.error)throw navigationRun.error;if(navigationRun.status!==0)pro
 
 const redirect=await build({absWorkingDir:root,entryPoints:["tests/store-redirect.test.ts"],bundle:true,write:false,platform:"node",format:"cjs",packages:"external",define:{"import.meta.env":JSON.stringify({VITE_STORE_ORIGIN:"https://store.example.invalid"})}});
 const redirectRun=spawnSync(process.execPath,["--input-type=commonjs"],{cwd:root,input:redirect.outputFiles[0].text,stdio:["pipe","inherit","inherit"]});if(redirectRun.error)throw redirectRun.error;if(redirectRun.status!==0)process.exitCode=redirectRun.status??1;
+
+const automatic=await build({absWorkingDir:root,entryPoints:["tests/automatic-handoff.test.ts"],bundle:true,write:false,platform:"node",format:"cjs",packages:"external",define:{"import.meta.env":JSON.stringify({VITE_STORE_ORIGIN:"https://store.example.invalid"})}});
+const automaticRun=spawnSync(process.execPath,["--input-type=commonjs"],{cwd:root,input:automatic.outputFiles[0].text,stdio:["pipe","inherit","inherit"]});if(automaticRun.error)throw automaticRun.error;if(automaticRun.status!==0)process.exitCode=automaticRun.status??1;
+
+const mirror=await build({absWorkingDir:root,entryPoints:["tests/mirror-parity.test.tsx"],bundle:true,write:false,platform:"node",format:"cjs",packages:"external",jsx:"automatic",alias:{"@":path.join(root,"src")},define:{"import.meta.env":"{}"}});
+const mirrorRun=spawnSync(process.execPath,["--input-type=commonjs"],{cwd:root,input:mirror.outputFiles[0].text,stdio:["pipe","inherit","inherit"]});if(mirrorRun.error)throw mirrorRun.error;if(mirrorRun.status!==0)process.exitCode=mirrorRun.status??1;
+
+const nav=await build({absWorkingDir:root,entryPoints:['tests/navigation-handoff.test.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',define:{'import.meta.env':JSON.stringify({MODE:'staging',VITE_NAVIGATION_HANDOFF_ENABLED:'true'})}});
+const navRun=spawnSync(process.execPath,['--input-type=commonjs'],{cwd:root,input:nav.outputFiles[0].text,stdio:['pipe','inherit','inherit']});if(navRun.status!==0)process.exitCode=navRun.status??1;
