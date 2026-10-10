@@ -1,8 +1,8 @@
 import {loadCheckoutAttempt} from './checkoutAttempt';
 import {checkoutLink} from './handoffLink';
 import {apiPost} from '@/services/api';
-export function navigationEnabled(){return import.meta.env.MODE==='staging'&&import.meta.env.VITE_NAVIGATION_HANDOFF_ENABLED==='true';}
-export function shippingEstimate(subtotal:number){return navigationEnabled()&&Math.round(subtotal*100)<20000?5:0;}
+export function navigationEnabled(){return ['staging','production'].includes(import.meta.env.MODE)&&import.meta.env.VITE_NAVIGATION_HANDOFF_ENABLED==='true';}
+export function shippingEstimate(subtotal:number){return ['staging','production'].includes(import.meta.env.MODE)&&Math.round(subtotal*100)<20000?5:0;}
 const running=new Map<string,Promise<void>>();
 export function navigateToCheckout(orderId:string,signal?:AbortSignal):Promise<void>{
  const old=running.get(orderId);if(old)return old;
