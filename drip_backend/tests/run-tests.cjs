@@ -7,6 +7,6 @@ Object.assign(env, { NODE_ENV: "test", JWT_SECRET: "synthetic-only-signing-key",
   DATABASE_URL: "postgresql://synthetic:synthetic@127.0.0.1:1/synthetic",
   CHECKOUT_APP_URL: "https://checkout.example.invalid", STRIPE_SUCCESS_URL: "https://checkout.example.invalid/success?orderId={ORDER_ID}",
   STRIPE_CANCEL_URL: "https://checkout.example.invalid/cancel?orderId={ORDER_ID}" });
-const child = spawnSync(process.execPath, ["--test", "tests/contracts.test.cjs", "tests/runtime-staging.test.cjs"], { env, stdio: "inherit" });
+const child = spawnSync(process.execPath, ["--test", "tests/contracts.test.cjs", "tests/runtime-staging.test.cjs", "tests/runtime-production.test.cjs"], { env, stdio: "inherit" });
 if (child.error) throw child.error;
 process.exitCode = child.status ?? 1;

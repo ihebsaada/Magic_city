@@ -13,9 +13,14 @@ import orderRoutes from "./routes/orderRoutes";
 import adminAuthRoutes from "./routes/adminAuthRoutes";
 import adminDiscountRouter from "./routes/discountRoutes";
 
-export function createApp({ logging = true, orderAccessRequired=false, orderRecoveryDelivery, handoffOrigins=DEFAULT_HANDOFF_ORIGINS, allowedOrigins, staging=false }: { logging?: boolean; orderAccessRequired?:boolean; orderRecoveryDelivery?:RecoveryDelivery; handoffOrigins?:typeof DEFAULT_HANDOFF_ORIGINS; allowedOrigins?:string[]; staging?:boolean } = {}) {
+export function createApp({ logging = true, orderAccessRequired=false, orderRecoveryDelivery, handoffOrigins=DEFAULT_HANDOFF_ORIGINS, allowedOrigins, staging=false, production=false, navigationHandoffEnabled=staging, shippingEnabled=staging || production }: { logging?: boolean; orderAccessRequired?:boolean; orderRecoveryDelivery?:RecoveryDelivery; handoffOrigins?:typeof DEFAULT_HANDOFF_ORIGINS; allowedOrigins?:string[]; staging?:boolean; production?:boolean; navigationHandoffEnabled?:boolean; shippingEnabled?:boolean } = {}) {
   const app = express();
-  app.locals.orderAccessRequired=orderAccessRequired;
+  app.locals.orderAccessRequired=production || staging || orderAccessRequired;
+  app.locals.production=production;
+  app.locals.navigationHandoffEnabled=navigationHandoffEnabled;
+  app.locals.shippingEnabled=production || shippingEnabled;
+  if(production && staging)throw new Error("DEPLOYMENT_MODE_CONFLICT");
+  if(production && (!allowedOrigins?.length || !allowedOrigins.includes(handoffOrigins.store) || !allowedOrigins.includes(handoffOrigins.checkout)))throw new Error("PRODUCTION_ORIGINS_REQUIRED");
   app.locals.staging=staging;
   app.locals.handoffOrigins=handoffOrigins;
   if(allowedOrigins)app.use((req,res,next)=>{res.set({'Cache-Control':'no-store','Referrer-Policy':'no-referrer'});const origin=req.get('Origin');if(origin && !allowedOrigins.includes(origin))return res.status(403).json({error:'ORIGIN_DENIED'});next();});

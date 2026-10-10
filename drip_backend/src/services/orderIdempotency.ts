@@ -1,3 +1,4 @@
+import {requireSecureOrder} from "./secureOrderPolicy";
 import {accessHash,bindGuestAccess,authorizeGuestAccess} from "./guestOrderAccess";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
@@ -40,14 +41,16 @@ function replay(record: { requestHash: string; replayUntil: Date; response: Pris
 async function create(db: Prisma.TransactionClient, value: unknown, endpoint: Endpoint, tokenHash?:string,shippingEnabled=false) {
  const {data,quantities}=await prepareOrder(value,db,shippingEnabled);
  const order=await db.order.create({data,include:{items:true}});
+ await db.secureOrderPolicy.create({data:{orderId:order.id,policyVersion:1}});
  await reserveOrder(db,order.id,quantities,data.discountCode as string|null);
  if(tokenHash)await bindGuestAccess(db,tokenHash,order.id);
  if(endpoint==="intent")return {orderId:order.id,redirectUrl:(process.env.CHECKOUT_APP_URL||"http://localhost:5173")+"/checkout-landing?orderId="+order.id};
  return order;
 }
-export async function createIdempotentOrder(value: unknown, endpoint: Endpoint, header: unknown, accessToken?:unknown,shippingEnabled=false) {
+export async function createIdempotentOrder(value: unknown, endpoint: Endpoint, header: unknown, accessToken?:unknown,shippingEnabled=false,secureRequired=process.env.DEPLOYMENT_ENV==="production") {
   const tokenHash=accessToken===undefined?undefined:accessHash(accessToken);
   const key = parseIdempotencyKey(header);
+  if((secureRequired || process.env.DEPLOYMENT_ENV==="production") && (!key || !tokenHash))throw new IdempotencyError(400,"SECURE_ORDER_CREATION_REQUIRED");
   if (!key) return { response: await prisma.$transaction(tx=>create(tx,value,endpoint,tokenHash,shippingEnabled),{maxWait:5000,timeout:10000}), status: 201, replayed: false };
   const keyHash = hash(key);
   const baseFingerprint = requestFingerprint(value, endpoint);
@@ -55,6 +58,7 @@ export async function createIdempotentOrder(value: unknown, endpoint: Endpoint, 
   const previous = await prisma.orderIdempotency.findUnique({ where: { keyHash } });
   if (previous) {
     const result=replay(previous,fingerprint);
+    await requireSecureOrder(previous.orderId!);
     if(tokenHash)await authorizeGuestAccess(previous.orderId!,accessToken);
     return result;
   }
@@ -72,6 +76,7 @@ export async function createIdempotentOrder(value: unknown, endpoint: Endpoint, 
       const winner = await prisma.orderIdempotency.findUnique({ where: { keyHash } });
       if (winner) {
         const result=replay(winner,fingerprint);
+        await requireSecureOrder(winner.orderId!);
         if(tokenHash)await authorizeGuestAccess(winner.orderId!,accessToken);
         return result;
       }

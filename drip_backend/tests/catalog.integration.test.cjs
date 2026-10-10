@@ -189,7 +189,7 @@ test("legacy stock reservations and guest protection activation flags are unchan
 });
 test("measured indexes are additive and do not alter historical stock data",async()=>{
  const idx=await db.$queryRawUnsafe('SELECT indexname FROM pg_indexes WHERE indexname IN ($1,$2)',"Variant_productId_id_idx","ProductImage_productId_position_id_idx");
- assert.equal(idx.length,2);assert.equal((await db.variant.findUniqueOrThrow({where:{sku:"legacy-synthetic-999"}})).inventoryQuantity,998);
+ assert.equal(idx.length,2);assert.equal((await db.variant.findUniqueOrThrow({where:{sku:"legacy-synthetic-999"}})).inventoryQuantity,999);
 });
 
 test("historical full collection does not truncate any of the 3000 products or galleries",async()=>{

@@ -74,6 +74,7 @@ model ProductCollection {
 }
 
 model Order {
+  securePolicy SecureOrderPolicy?
   navigationHandoffs NavigationHandoff[]
   guestAccessTokens   GuestOrderAccess[]
   guestRecoveries     GuestOrderRecovery[]
@@ -292,4 +293,26 @@ model NavigationHandoff {
  source GuestOrderAccess @relation("NavigationSource",fields:[sourceHash],references:[tokenHash],onDelete:Restrict)
  recipient GuestOrderAccess? @relation("NavigationRecipient",fields:[recipientHash],references:[tokenHash],onDelete:Restrict)
  @@index([orderId,createdAt])
+}
+
+model SecureOrderPolicy {
+ orderId String @id
+ policyVersion Int @default(1)
+ createdAt DateTime @default(now())
+ order Order @relation(fields:[orderId],references:[id],onDelete:Restrict)
+}
+
+// No relation/cascade to commerce: receipt never confers access or payment state.
+model HistoricalWebhookReceipt {
+ eventHash String @id @db.Char(64)
+ payloadHash String @db.Char(64)
+ orderAlias String @db.Char(64)
+ sessionHash String @db.Char(64)
+ eventType String
+ livemode Boolean
+ decision String @default("HISTORICAL_QUARANTINED")
+ reviewState String @default("PENDING")
+ severity String
+ createdAt DateTime @default(now())
+ @@index([reviewState, createdAt])
 }

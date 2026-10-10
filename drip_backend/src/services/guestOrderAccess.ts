@@ -1,3 +1,4 @@
+import {requireSecureOrder} from "./secureOrderPolicy";
 
 import {createHash,randomBytes} from "node:crypto";
 import {Prisma} from "@prisma/client";
@@ -19,6 +20,7 @@ export async function prepareGuestAccess() {
  return {accessToken:token,expiresAt:expiresAt.toISOString()};
 }
 export async function bindGuestAccess(tx:Prisma.TransactionClient,tokenHash:string,orderId:string) {
+ await requireSecureOrder(orderId,tx);
  await tx.$queryRawUnsafe('SELECT "tokenHash" FROM "GuestOrderAccess" WHERE "tokenHash"=$1 FOR UPDATE',tokenHash);
  const row=await tx.guestOrderAccess.findUnique({where:{tokenHash}});
  if(!row || row.revokedAt || row.expiresAt.getTime()<=Date.now() || (row.orderId && row.orderId!==orderId))
@@ -29,10 +31,12 @@ export async function authorizeGuestAccess(orderId:string,token:unknown) {
  const row=await prisma.guestOrderAccess.findUnique({where:{tokenHash:accessHash(token)}});
  if(!row || row.orderId!==orderId || row.revokedAt || row.expiresAt.getTime()<=Date.now())
   throw new GuestAccessError(401,"ORDER_ACCESS_DENIED");
+ await requireSecureOrder(orderId);
 }
 export async function revokeGuestAccess(orderId:string) {
  return prisma.$transaction(async tx=>{
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',orderId);
+  await requireSecureOrder(orderId,tx);
   if(!await tx.order.findUnique({where:{id:orderId}}))throw new GuestAccessError(404,"ORDER_NOT_FOUND");
   await tx.navigationHandoff.updateMany({where:{orderId,revokedAt:null},data:{revokedAt:new Date()}});
   await tx.orderHandoff.updateMany({where:{expectedOrderId:orderId,revokedAt:null},data:{revokedAt:new Date()}});
@@ -49,7 +53,9 @@ export async function requestGuestRecovery(orderId:unknown,email:unknown,deliver
  const recipient=await prisma.$transaction(async tx=>{
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',orderId);
   const order=await tx.order.findUnique({where:{id:orderId}});
-  if(!order || order.customerEmail.trim().toLowerCase()!==email.trim().toLowerCase())return null;
+  if(!order)return null;
+  await requireSecureOrder(orderId,tx);
+  if(order.customerEmail.trim().toLowerCase()!==email.trim().toLowerCase())return null;
   const count=await tx.guestOrderRecovery.count({where:{orderId,createdAt:{gt:new Date(Date.now()-3600000)}}});
   if(count>=5)return null;
   await tx.guestOrderRecovery.create({data:{tokenHash,orderId,expiresAt}});
@@ -72,6 +78,7 @@ export async function redeemGuestRecovery(value:unknown) {
   const row=await tx.guestOrderRecovery.findUnique({where:{tokenHash}});
   if(!row || row.usedAt || row.expiresAt.getTime()<=Date.now())throw new GuestAccessError(401,"ORDER_ACCESS_DENIED");
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',row.orderId);
+  await requireSecureOrder(row.orderId,tx);
   await tx.$queryRawUnsafe('SELECT "tokenHash" FROM "GuestOrderRecovery" WHERE "tokenHash"=$1 FOR UPDATE',tokenHash);
   // Admin revocation or another redemption may have invalidated the challenge while waiting.
   const current=await tx.guestOrderRecovery.findUnique({where:{tokenHash}});

@@ -1,3 +1,4 @@
+import {requireSecureOrder} from "./secureOrderPolicy";
 
 
 import prisma from "../prisma";
@@ -6,6 +7,7 @@ import {reconcilePayment,PaymentError} from "./paymentService";
 import {releaseReservation,ReservationError} from "./reservations";
 
 export async function reconcileReservation(orderId:string) {
+  await requireSecureOrder(orderId);
   const r=await prisma.orderReservation.findUnique({where:{orderId}});
   if(!r || r.state!=="ACTIVE")return r;
   const o=await prisma.order.findUniqueOrThrow({where:{id:orderId}});

@@ -1,3 +1,4 @@
+import {requireSecureOrder} from "./secureOrderPolicy";
 
 import { Prisma } from "@prisma/client";
 export class ReservationError extends Error {
@@ -7,6 +8,7 @@ export const RESERVATION_MS = 60 * 60 * 1000;
 export const PAYMENT_WINDOW_MS = 30 * 60 * 1000;
 export async function reserveOrder(tx: Prisma.TransactionClient, orderId: string,
     lines: Map<number,number>, discountCode: string | null, anchor?:Date) {
+  await requireSecureOrder(orderId,tx);
   const created=await tx.order.findUniqueOrThrow({where:{id:orderId}});
   const expiresAt=new Date((anchor??created.createdAt).getTime()+RESERVATION_MS);
   let discountId:string|null=null;
@@ -30,7 +32,8 @@ export async function reserveOrder(tx: Prisma.TransactionClient, orderId: string
     items:{create:[...lines].map(([variantId,quantity])=>({variantId,quantity}))}}});
 }
 export async function consumeReservation(tx: Prisma.TransactionClient,orderId:string) {
-  // Caller holds the order row lock. Null denotes an unchanged legacy order.
+  // Caller holds the order row lock. Historical orders are refused before reservation lookup.
+  await requireSecureOrder(orderId,tx);
   const r=await tx.orderReservation.findUnique({where:{orderId},include:{items:true}});
   if(!r)return false;
   if(r.state==="CONSUMED")return true;
@@ -54,6 +57,7 @@ export async function consumeReservation(tx: Prisma.TransactionClient,orderId:st
 }
 export async function releaseReservation(tx: Prisma.TransactionClient,orderId:string) {
   // Caller holds the order row lock AND has proved all Stripe sessions cannot still pay.
+  await requireSecureOrder(orderId,tx);
   const r=await tx.orderReservation.findUnique({where:{orderId},include:{items:true}});
   if(!r || r.state!=="ACTIVE")return r;
   const o=await tx.order.findUniqueOrThrow({where:{id:orderId}});

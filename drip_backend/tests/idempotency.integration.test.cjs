@@ -19,7 +19,7 @@ before(async()=>{
 after(async()=>{await stop();await db.$disconnect();});
 beforeEach(async()=>{await db.stockReservationItem.deleteMany();await db.orderReservation.deleteMany();
  await db.variant.updateMany({data:{reservedQuantity:0}});
- await db.orderIdempotency.deleteMany();await db.orderItem.deleteMany({where:{orderId:{not:legacy.id}}});await db.order.deleteMany({where:{id:{not:legacy.id}}});await db.variant.updateMany({where:{productId:product.id},data:{inventoryQuantity:5}});});
+ await db.orderIdempotency.deleteMany();await db.orderItem.deleteMany({where:{orderId:{not:legacy.id}}});await db.secureOrderPolicy.deleteMany({where:{orderId:{not:legacy.id}}});await db.order.deleteMany({where:{id:{not:legacy.id}}});await db.variant.updateMany({where:{productId:product.id},data:{inventoryQuantity:5}});});
 const body=()=>({customerName:"Synthetic",customerEmail:"synthetic@example.invalid",items:[{productId:product.id,quantity:1,selectedSize:"M",selectedColor:"Blue"}]});
 const call=async(key,data=body(),path="/checkout/intent",extra={})=>{
   const res=await fetch(base+"/api"+path,{method:"POST",headers:{"Content-Type":"application/json",...(key?{"Idempotency-Key":key}:{}),...extra},body:JSON.stringify(data),signal:AbortSignal.timeout(10000)});

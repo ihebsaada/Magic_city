@@ -1,3 +1,4 @@
+import {requireSecureOrder} from "./secureOrderPolicy";
 
 import { randomUUID } from "node:crypto";
 import { Order, PaymentAttempt, Prisma } from "@prisma/client";
@@ -13,6 +14,7 @@ const latest = (tx: Prisma.TransactionClient, orderId: string) =>
   tx.paymentAttempt.findFirst({where:{orderId},orderBy:{generation:"desc"}});
 async function lockedOrder(tx: Prisma.TransactionClient, id: string) {
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id" = $1 FOR UPDATE', id);
+  await requireSecureOrder(id,tx);
   const order = await tx.order.findUnique({where:{id}});
   if (!order) throw new PaymentError(404,"ORDER_NOT_FOUND");
   return order;
@@ -125,6 +127,9 @@ export async function startPayment(orderId: unknown): Promise<{url:string;sessio
   }
 }
 export async function reconcilePayment(sessionId: string,event?:{id:string;type:string}) {
+  const knownAttempt=await prisma.paymentAttempt.findUnique({where:{sessionId},select:{orderId:true}});
+  const knownOrderId=knownAttempt?.orderId ?? (await prisma.order.findFirst({where:{stripeSessionId:sessionId},select:{id:true}}))?.id;
+  if(knownOrderId)await requireSecureOrder(knownOrderId);
   const s=await retrieve(sessionId);
   if(s.id!==sessionId) throw new PaymentError(409,"PAYMENT_SESSION_MISMATCH");
   const orderId=s.metadata?.order_id;

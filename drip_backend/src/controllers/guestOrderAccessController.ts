@@ -1,7 +1,8 @@
+import {SecureOrderPolicyError} from "../services/secureOrderPolicy";
 
 import {Request,Response} from "express";
 import {prepareGuestAccess,revokeGuestAccess,requestGuestRecovery,redeemGuestRecovery,GuestAccessError,RecoveryDelivery} from "../services/guestOrderAccess";
-const failure=(res:Response,error:unknown)=>res.status(error instanceof GuestAccessError?error.status:503).json({error:error instanceof GuestAccessError?error.code:"ORDER_ACCESS_RETRY"});
+const failure=(res:Response,error:unknown)=>res.status(error instanceof SecureOrderPolicyError || error instanceof GuestAccessError?error.status:503).json({error:error instanceof SecureOrderPolicyError || error instanceof GuestAccessError?error.code:"ORDER_ACCESS_RETRY"});
 export async function prepareAccess(_req:Request,res:Response){try{return res.status(201).json(await prepareGuestAccess());}catch(e){return failure(res,e);}}
 export async function revokeAccess(req:Request,res:Response){try{return res.json(await revokeGuestAccess(req.params.id));}catch(e){return failure(res,e);}}
 export async function requestRecovery(req:Request,res:Response){

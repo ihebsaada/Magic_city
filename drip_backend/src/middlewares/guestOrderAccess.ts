@@ -1,3 +1,4 @@
+import {SecureOrderPolicyError} from "../services/secureOrderPolicy";
 
 import {Request,Response,NextFunction} from "express";
 import prisma from "../prisma";
@@ -32,7 +33,7 @@ export async function guestOrderAccess(req:Request,res:Response,next:NextFunctio
   if(typeof orderId!=="string")throw new GuestAccessError(401,"ORDER_ACCESS_DENIED");
   await authorizeGuestAccess(orderId,token);next();
  }catch(error){
-  if(error instanceof GuestAccessError)return res.status(error.status).json({error:error.code});
+  if(error instanceof SecureOrderPolicyError || error instanceof GuestAccessError)return res.status(error.status).json({error:error.code});
   return res.status(503).json({error:"ORDER_ACCESS_RETRY"});
  }
 }

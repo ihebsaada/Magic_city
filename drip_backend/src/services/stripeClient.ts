@@ -8,10 +8,21 @@ if(process.env.DEPLOYMENT_ENV==="staging"){
  const create=stripe.checkout.sessions.create.bind(stripe.checkout.sessions);
  stripe.checkout.sessions.create=((params:Stripe.Checkout.SessionCreateParams,options?:Stripe.RequestOptions)=>{
   if(params.customer_email||params.customer||params.payment_intent_data?.receipt_email)throw new Error("STAGING_PAYMENT_REVIEW_REQUIRED");
-  return create(params,options);
+  return create(params,options).then(session=>{if(session.livemode!==false)throw new Error("STAGING_LIVE_SESSION_DENIED");return session;});
  }) as typeof stripe.checkout.sessions.create;
  const retrieve=stripe.checkout.sessions.retrieve.bind(stripe.checkout.sessions);
  stripe.checkout.sessions.retrieve=(async(...args:Parameters<typeof stripe.checkout.sessions.retrieve>)=>{
   const session=await retrieve(...args);if(session.livemode!==false)throw new Error("STAGING_LIVE_SESSION_DENIED");return session;
+ }) as typeof stripe.checkout.sessions.retrieve;
+}
+
+if(process.env.DEPLOYMENT_ENV==="production"){
+ const create=stripe.checkout.sessions.create.bind(stripe.checkout.sessions);
+ stripe.checkout.sessions.create=((params:Stripe.Checkout.SessionCreateParams,options?:Stripe.RequestOptions)=>
+  create(params,options).then(session=>{if(session.livemode!==true)throw new Error("PRODUCTION_TEST_SESSION_DENIED");return session;})
+ ) as typeof stripe.checkout.sessions.create;
+ const retrieve=stripe.checkout.sessions.retrieve.bind(stripe.checkout.sessions);
+ stripe.checkout.sessions.retrieve=(async(...args:Parameters<typeof stripe.checkout.sessions.retrieve>)=>{
+  const session=await retrieve(...args);if(session.livemode!==true)throw new Error("PRODUCTION_TEST_SESSION_DENIED");return session;
  }) as typeof stripe.checkout.sessions.retrieve;
 }

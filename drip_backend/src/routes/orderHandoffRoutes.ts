@@ -1,3 +1,4 @@
+import {SecureOrderPolicyError} from "../services/secureOrderPolicy";
 import { Router, RequestHandler } from "express";
 import { createHandoff, approveHandoff, redeemHandoff } from "../services/orderHandoff";
 import { GuestAccessError } from "../services/guestOrderAccess";
@@ -30,7 +31,7 @@ export const throttle:RequestHandler=(req,res,next)=>{
 };
 const handler=(run:(req:Parameters<RequestHandler>[0])=>Promise<unknown>):RequestHandler=>async(req,res)=>{
  try {res.json(await run(req));}
- catch(error){if(error instanceof GuestAccessError){if(error.status===429)res.set("Retry-After","60");res.status(error.status).json({error:error.code});}
+ catch(error){if(error instanceof SecureOrderPolicyError || error instanceof GuestAccessError){if(error.status===429)res.set("Retry-After","60");res.status(error.status).json({error:error.code});}
  else res.status(503).json({error:"HANDOFF_RETRY"});}
 };
 const router=Router();

@@ -60,7 +60,7 @@ beforeEach(async()=>{
  await db.stockReservationItem.deleteMany();await db.orderReservation.deleteMany();
  await db.variant.updateMany({data:{reservedQuantity:0}});
  await db.orderIdempotency.deleteMany();await db.orderItem.deleteMany({where:{orderId:{not:legacy.id}}});
- await db.order.deleteMany({where:{id:{not:legacy.id}}});
+ await db.secureOrderPolicy.deleteMany({where:{orderId:{not:legacy.id}}});await db.order.deleteMany({where:{id:{not:legacy.id}}});
  await db.discount.deleteMany();
  await db.discount.create({data:{code:"SYNTHETIC",type:"FIXED",value:"1.00",usageLimit:1}});
  for(const v of product.variants)await db.variant.update({where:{id:v.id},data:{inventoryQuantity:v.option1==="M"?1:5}});
@@ -376,10 +376,10 @@ test("reconciliation endpoint is authenticated and exposes no anonymous mutation
 });
 test("pre-migration orders retain data and unreserved pending payment requires review",async()=>{
  const before=await db.order.findUniqueOrThrow({where:{id:legacy.id}});
- assert.equal(await reconcileReservation(legacy.id),null);
+ await assert.rejects(reconcileReservation(legacy.id),e=>e.code==="HISTORICAL_ORDER_READ_ONLY");
  assert.deepEqual(await db.order.findUniqueOrThrow({where:{id:legacy.id}}),before);
  assert.equal(before.total.toFixed(2),"12.34");assert.equal(await db.orderReservation.count({where:{orderId:legacy.id}}),0);
- const start=await pay(legacy.id);assert.equal(start.status,409);assert.equal(start.body.error,"LEGACY_RESERVATION_REVIEW");
+ const start=await pay(legacy.id);assert.equal(start.status,409);assert.equal(start.body.error,"HISTORICAL_ORDER_READ_ONLY");
  assert.equal(creations,0);assert.deepEqual(await db.order.findUniqueOrThrow({where:{id:legacy.id}}),before);
  assert.equal((await variant()).inventoryQuantity,1);assert.equal((await variant()).reservedQuantity,0);
 });
@@ -428,20 +428,14 @@ test("expired unused discount capacity becomes available for a new legitimate or
  assert.equal((await coupon()).reservedUses,1);assert.equal((await coupon()).usageCount,0);
 });
 
-test("explicit authenticated reservation makes a historical order payable without repricing it",async()=>{
+test("authenticated legacy reservation cannot make a historical order payable",async()=>{
  const original=await db.order.findUniqueOrThrow({where:{id:legacy.id}});
  assert.equal((await pay(legacy.id)).status,409);
  assert.equal((await request("/admin/orders/"+legacy.id+"/reserve-legacy",{method:"POST"})).status,401);
  const result=await admin("/admin/orders/"+legacy.id+"/reserve-legacy",{},"POST");
- assert.equal(result.status,200);assert.equal(result.body.state,"ACTIVE");assert.equal(result.body.items[0].quantity,1);
- const repeated=await admin("/admin/orders/"+legacy.id+"/reserve-legacy",{},"POST");
- assert.equal(repeated.status,200);assert.equal(repeated.body.items[0].quantity,1);
- const old=await db.order.findUniqueOrThrow({where:{id:legacy.id}});
- assert.deepEqual(old,original); // Creating the reservation does not rewrite the historical order.
- const start=await pay(legacy.id);assert.equal(start.status,200);
- assert.equal(remote.get(start.body.sessionId).amount_total,1234);
- paid(start.body.sessionId);assert.equal((await confirm(start.body.sessionId)).status,200);
- const item=result.body.items[0];const v=await db.variant.findUniqueOrThrow({where:{id:item.variantId}});
- assert.equal(v.inventoryQuantity,998);assert.equal(v.reservedQuantity,0);
- assert.equal((await variant()).inventoryQuantity,1);
+ assert.equal(result.status,409);assert.equal(result.body.error,"HISTORICAL_ORDER_READ_ONLY");
+ assert.equal(await db.orderReservation.count({where:{orderId:legacy.id}}),0);
+ assert.equal(await db.secureOrderPolicy.count({where:{orderId:legacy.id}}),0);
+ assert.deepEqual(await db.order.findUniqueOrThrow({where:{id:legacy.id}}),original);
+ assert.equal(creations,0);
 });

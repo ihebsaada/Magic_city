@@ -1,3 +1,4 @@
+import {requireSecureOrder} from "./secureOrderPolicy";
 
 import {Prisma} from "@prisma/client";
 import prisma from "../prisma";
@@ -6,6 +7,7 @@ import {reserveOrder,ReservationError} from "./reservations";
 export async function reserveLegacyOrder(orderId:string) {
  return prisma.$transaction(async tx=>{
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',orderId);
+  await requireSecureOrder(orderId,tx);
   const o=await tx.order.findUnique({where:{id:orderId},include:{items:true}});
   if(!o)throw new ReservationError(404,"ORDER_NOT_FOUND");
   const existing=await tx.orderReservation.findUnique({where:{orderId},include:{items:true}});

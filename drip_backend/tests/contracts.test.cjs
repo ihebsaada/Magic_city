@@ -11,9 +11,12 @@ const order = { id: "synthetic-order", orderNumber: 1, customerName: "Synthetic 
 const passwordHash = require("bcrypt").hashSync("synthetic-password", 4);
 const product = { id:7, title:"Synthetic product", handle:"synthetic", vendor:"Synthetic", descriptionHtml:"Synthetic description", images:[{src:"https://images.example.invalid/test.jpg"}], variants:[{id:70,price:decimal(20),inventoryQuantity:5,option1:"M",option2:"Blue"}], collections:[] };
 const fakePrisma = {
+  secureOrderPolicy:{findUnique:async()=>({policyVersion:1}),create:async({data})=>data},
+  orderIdempotency:{findUnique:async()=>null,create:async({data})=>data,update:async({data})=>data},
   user: { findUnique: async () => { userReads++; if (authFailure) throw new Error("Synthetic DB failure"); return user; } },
   order: {
     findMany: async () => { reads++; return [order]; },
+    findFirst:async()=>({id:order.id}),
     findUnique: async ({where}) => { reads++; return where.id === order.id ? {...order, ...(createdData ?? {})} : null; },
     create: async ({data}) => { updates++; attempts=[];reservation=null;remoteSession=undefined;createdData={...data,createdAt:new Date()}; return {...order, ...createdData, id: order.id}; },
     update: async ({data}) => { updates++; createdData={...(createdData??{}),...data}; return {...order, ...createdData}; },
@@ -21,6 +24,7 @@ const fakePrisma = {
   },
   $transaction: async fn=>fn(fakePrisma), $queryRawUnsafe: async()=>[],
   paymentAttempt: {
+      findUnique:async({where})=>attempts.find(a=>a.sessionId===where.sessionId)??null,
     findFirst: async ({where})=>attempts.filter(a=>a.orderId===where.orderId && (!where.OR || where.OR.some(q=>q.sessionId===a.sessionId || q.id===a.id))).at(-1)??null,
     create: async ({data})=>{const a={...data,createdAt:new Date(),leaseUntil:null};attempts.push(a);return {...a};},
     findUniqueOrThrow: async ({where})=>({...attempts.find(a=>a.id===where.id)}),
@@ -278,4 +282,33 @@ test("an exhausted limited code refuses creation instead of silently increasing 
  discountRule={...rule(),usageLimit:1,usageCount:1};
  const result=await call("/checkout/intent",post({...payload(),discountCode:"TEST"}));
  assert.equal(result.status,409);assert.equal(result.body.error,"DISCOUNT_UNAVAILABLE");assert.equal(updates,0);
+});
+
+test("production shipping authority uses before-discount subtotal and Stripe receives exact frozen total",async()=>{
+ const {createIdempotentOrder}=require('../dist/services/orderIdempotency');
+ discountRule={code:'TEST',active:true,type:'PERCENTAGE',value:decimal(10),usageCount:0,usageLimit:null,expiresAt:null};
+ for(const [subtotal,total] of [[11,'14.90'],[199.99,'184.99'],[200,'180.00']]){
+ availableProducts=[{...product,variants:[{...product.variants[0],price:decimal(subtotal)}]}];
+ await createIdempotentOrder({...payload(),discountCode:'TEST'},'intent',undefined,undefined,true);
+ assert.equal(createdData.total.toFixed(2),total);
+ assert.equal((await call('/pay',post({orderId:order.id}))).status,200);
+ assert.equal(stripeRequest.line_items[0].price_data.unit_amount,Number(decimal(total).mul(100)));
+ }
+});
+test("existing order snapshot is not repriced by production shipping policy",async()=>{
+ const frozen=order.total.toFixed(2);await call('/pay',post({orderId:order.id}));
+ assert.equal(order.total.toFixed(2),frozen);assert.equal(stripeRequest.line_items[0].price_data.unit_amount,2000);
+});
+
+test("production HTTP order and payment enforce guest grant and include authoritative shipping",async()=>{
+ fakePrisma.guestOrderAccess={findUnique:async()=>({orderId:order.id,revokedAt:null,expiresAt:new Date(Date.now()+60000)})};
+ const origin='https://store.prod.invalid',checkout='https://checkout.prod.invalid';
+ const app=createApp({logging:false,production:true,allowedOrigins:[origin,checkout],handoffOrigins:{store:origin,checkout}});
+ const s=app.listen(0,'127.0.0.1');await new Promise(r=>s.once('listening',r));const url='http://127.0.0.1:'+s.address().port;
+ try{availableProducts=[{...product,variants:[{...product.variants[0],price:decimal(11)}]}];discountRule={code:'TEST',active:true,type:'PERCENTAGE',value:decimal(10),usageCount:0,usageLimit:null,expiresAt:null};
+ const body={...payload(),discountCode:'TEST'};assert.equal((await fetch(url+'/api/checkout/intent',post(body))).status,401);
+ const headers={'Order-Access-Token':'a'.repeat(43),'Idempotency-Key':'synthetic-production-key-123',Origin:origin};
+ assert.equal((await fetch(url+'/api/checkout/intent',post(body,headers))).status,201);assert.equal(createdData.total.toFixed(2),'14.90');
+ assert.equal((await fetch(url+'/api/pay',post({orderId:order.id},headers))).status,200);assert.equal(stripeRequest.line_items[0].price_data.unit_amount,1490);
+ }finally{s.closeAllConnections();await new Promise(r=>s.close(r));}
 });

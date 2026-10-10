@@ -1,3 +1,4 @@
+import {requireSecureOrder} from "./secureOrderPolicy";
 import { randomBytes, createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import prisma from "../prisma";
@@ -24,6 +25,7 @@ export async function createHandoff(order:unknown,token:unknown,origin:string) {
  return prisma.$transaction(async tx=>{
   // Serialize quotas without revealing whether the public order reference exists.
   await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))::text',expectedOrderId);
+  await requireSecureOrder(expectedOrderId,tx);
   const grant=await lockGrant(tx,recipientHash);
   const previous=await tx.orderHandoff.findUnique({where:{recipientHash}});
   if(previous) {
@@ -48,6 +50,7 @@ export async function approveHandoff(order:unknown,pairing:unknown,token:unknown
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',orderId);
   const source=await lockGrant(tx,sourceHash);
   if(source.orderId!==orderId) throw denied();
+  await requireSecureOrder(orderId,tx);
   await tx.$queryRawUnsafe('SELECT "id" FROM "OrderHandoff" WHERE "id"=$1 FOR UPDATE',id);
   const row=await tx.orderHandoff.findUnique({where:{id}});
   if(!row || row.expectedOrderId!==orderId || row.revokedAt) throw denied();
@@ -70,6 +73,7 @@ export async function redeemHandoff(pairing:unknown,token:unknown,origin:string)
   if(!initial || initial.recipientHash!==recipientHash || initial.origin!==origin) throw denied();
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',initial.expectedOrderId);
   await tx.$queryRawUnsafe('SELECT "id" FROM "OrderHandoff" WHERE "id"=$1 FOR UPDATE',id);
+  await requireSecureOrder(initial.expectedOrderId,tx);
   const row=await tx.orderHandoff.findUniqueOrThrow({where:{id}});
   if(row.revokedAt) throw denied();
   const grant=await lockGrant(tx,recipientHash);

@@ -5,6 +5,7 @@ const {createHash}=require("node:crypto");
 const {PrismaClient}=require("@prisma/client");
 const jwt=require("jsonwebtoken");
 const db=new PrismaClient();
+let recoveryTarget,recoveryTargetPromise;
 let server,base,app,product,legacy,remote,emails,deliveryFailure,calls,retrieves;
 const realStripe=require("stripe"),signer=new realStripe("sk_test_synthetic_not_a_real_key");
 class FakeStripe {
@@ -35,13 +36,13 @@ before(async()=>{
 after(async()=>{server.closeAllConnections();await new Promise(r=>server.close(r));await shared.$disconnect();await db.$disconnect();});
 beforeEach(async()=>{
  app.locals.orderAccessRequired=false;app.locals.orderRecoveryDelivery=delivery;
- emails=[];deliveryFailure=false;remote=new Map();calls=retrieves=0;
+ recoveryTarget=undefined;recoveryTargetPromise=undefined;emails=[];deliveryFailure=false;remote=new Map();calls=retrieves=0;
  await db.guestOrderRecovery.deleteMany();await db.guestOrderAccess.deleteMany();
  await db.stripeEvent.deleteMany();await db.paymentFinalization.deleteMany();await db.paymentAttempt.deleteMany();
  await db.stockReservationItem.deleteMany();await db.orderReservation.deleteMany();
  await db.variant.updateMany({data:{reservedQuantity:0}});
  await db.orderIdempotency.deleteMany();await db.orderItem.deleteMany({where:{orderId:{not:legacy.id}}});
- await db.order.deleteMany({where:{id:{not:legacy.id}}});
+ await db.secureOrderPolicy.deleteMany({where:{orderId:{not:legacy.id}}});await db.order.deleteMany({where:{id:{not:legacy.id}}});
  await db.discount.updateMany({data:{reservedUses:0}});
 });
 async function request(path,{method="GET",token,body,headers={},raw}={}){
@@ -62,7 +63,7 @@ async function bound(){
 const minimal=(id,token)=>request("/orders/"+id+"/min",{token});
 const pay=(id,token)=>request("/pay",{method:"POST",body:{orderId:id},token});
 const confirm=(id,token)=>request("/pay/confirm?session_id="+id,{token});
-const recover=(id=legacy.id,email=legacy.customerEmail)=>request("/order-access/recovery",{method:"POST",body:{orderId:id,email}});
+const recover=async(id,email)=>{if(id===undefined){recoveryTarget=await (recoveryTargetPromise??=bound());id=recoveryTarget.id;email="synthetic@example.invalid";}return request("/order-access/recovery",{method:"POST",body:{orderId:id,email}});};
 const redeem=token=>request("/order-access/redeem",{method:"POST",body:{recoveryToken:token}});
 async function admin(){
  const user=await db.user.upsert({where:{email:"guest-admin@example.invalid"},update:{},create:{email:"guest-admin@example.invalid",passwordHash:"synthetic-not-for-login"}});
@@ -168,23 +169,23 @@ test("malformed JSON never echoes secret in error response",async()=>{
 test("old order has no implicit grant and is not changed by migration",async()=>{
  const row=await db.order.findUniqueOrThrow({where:{id:legacy.id}});
  assert.equal(row.total.toFixed(2),"12.34");assert.equal(await db.guestOrderAccess.count({where:{orderId:legacy.id}}),0);
- assert.equal((await minimal(legacy.id)).status,200);app.locals.orderAccessRequired=true;assert.equal((await minimal(legacy.id)).status,401);
+ assert.equal((await minimal(legacy.id)).status,409);app.locals.orderAccessRequired=true;assert.equal((await minimal(legacy.id)).status,401);
 });
 test("recovery responds uniformly for missing ID, wrong email and valid request",async()=>{
  const missing=await recover("not-an-order","nobody@example.invalid"),wrong=await recover(legacy.id,"wrong@example.invalid"),ok=await recover();
  assert.deepEqual(missing,ok);assert.deepEqual(wrong,ok);assert.equal(ok.status,202);assert.equal(emails.length,1);
- assert.equal(emails[0].email,legacy.customerEmail);assert.ok(!JSON.stringify(ok).includes(emails[0].recoveryToken));
+ assert.equal(emails[0].email,"synthetic@example.invalid");assert.ok(!JSON.stringify(ok).includes(emails[0].recoveryToken));
  const row=await db.guestOrderRecovery.findFirstOrThrow();assert.equal(row.tokenHash,hash(emails[0].recoveryToken));assert.ok(!JSON.stringify(row).includes(emails[0].recoveryToken));
 });
 test("order ID and even correct email alone never grant access: delivered secret required",async()=>{
- await recover();assert.equal((await minimal(legacy.id,"A".repeat(43))).status,401);
- assert.equal((await redeem(legacy.id)).status,401);
- const r=await redeem(emails[0].recoveryToken);assert.equal(r.status,200);assert.equal(r.body.orderId,legacy.id);
- assert.equal((await minimal(legacy.id,r.body.accessToken)).status,200);
+ await recover();assert.equal((await minimal(recoveryTarget.id,"A".repeat(43))).status,401);
+ assert.equal((await redeem(recoveryTarget.id)).status,401);
+ const r=await redeem(emails[0].recoveryToken);assert.equal(r.status,200);assert.equal(r.body.orderId,recoveryTarget.id);
+ assert.equal((await minimal(recoveryTarget.id,r.body.accessToken)).status,200);
 });
 test("recovery is one-use and concurrent redemption produces one token",async()=>{
  await recover();const [a,b]=await Promise.all([redeem(emails[0].recoveryToken),redeem(emails[0].recoveryToken)]);
- assert.deepEqual([a.status,b.status].sort(),[200,401]);assert.equal(await db.guestOrderAccess.count({where:{orderId:legacy.id}}),1);
+ assert.deepEqual([a.status,b.status].sort(),[200,401]);assert.equal(await db.guestOrderAccess.count({where:{orderId:recoveryTarget.id,revokedAt:null}}),1);
 });
 test("expired recovery challenge is denied",async()=>{
  await recover();await db.guestOrderRecovery.updateMany({data:{expiresAt:new Date(0)}});
@@ -198,7 +199,7 @@ test("recovery rotates all old credentials and invalidates pending challenges",a
 });
 test("Admin revocation invalidates pending recovery as well as existing grant",async()=>{
  await recover();const headers=await admin();
- await request("/admin/orders/"+legacy.id+"/revoke-access",{method:"POST",headers});
+ await request("/admin/orders/"+recoveryTarget.id+"/revoke-access",{method:"POST",headers});
  assert.equal((await redeem(emails[0].recoveryToken)).status,401);
 });
 test("recovery is explicitly unavailable without verified delivery transport",async()=>{
@@ -246,10 +247,10 @@ test("concurrent revocation and recovery redemption cannot leave a token active 
  await recover();const headers=await admin();
  const [r,a]=await Promise.all([
   redeem(emails[0].recoveryToken),
-  request("/admin/orders/"+legacy.id+"/revoke-access",{method:"POST",headers})
+  request("/admin/orders/"+recoveryTarget.id+"/revoke-access",{method:"POST",headers})
  ]);
  assert.equal(a.status,200);assert.ok([200,401].includes(r.status));
- if(r.status===200)assert.equal((await minimal(legacy.id,r.body.accessToken)).status,401);
+ if(r.status===200)assert.equal((await minimal(recoveryTarget.id,r.body.accessToken)).status,401);
 });
 test("CORS permits the credential header on cross-origin requests",async()=>{
  const r=await fetch(base+"/api/pay",{method:"OPTIONS",headers:{Origin:"https://store.example.invalid","Access-Control-Request-Method":"POST","Access-Control-Request-Headers":"order-access-token,content-type"}});

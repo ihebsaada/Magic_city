@@ -1,3 +1,4 @@
+import {requireSecureOrder} from "./secureOrderPolicy";
 import {randomBytes,createHash,createCipheriv,createDecipheriv} from 'node:crypto';
 import {Prisma} from '@prisma/client';
 import prisma from '../prisma';
@@ -14,6 +15,7 @@ export async function createNavigation(order:unknown,token:unknown,creation:unkn
  const creationKeyHash=hash(sourceHash+':'+creationKey),requestHash=hash(orderId+':'+sourceHash+':'+origin);
  return prisma.$transaction(async tx=>{
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',orderId);
+  await requireSecureOrder(orderId,tx);
   const g=await grant(tx,sourceHash);if(g.orderId!==orderId)throw fail();
   const old=await tx.navigationHandoff.findUnique({where:{creationKeyHash}});
   if(old){if(old.requestHash!==requestHash)throw fail(409,'NAVIGATION_CONFLICT');if(old.revokedAt)throw fail();if(old.expiresAt.getTime()<=Date.now())throw fail(410,'NAVIGATION_EXPIRED');return {orderId,ticket:decrypt(old.ticketCiphertext),expiresAt:old.expiresAt.toISOString()};}
@@ -27,6 +29,7 @@ export async function redeemNavigation(order:unknown,value:unknown,token:unknown
  const orderId=id(order),ticket=id(value);if(ticket.length!==43)throw fail();const ticketHash=hash(ticket),recipientHash=accessHash(token);
  return prisma.$transaction(async tx=>{
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id"=$1 FOR UPDATE',orderId);
+  await requireSecureOrder(orderId,tx);
   await tx.$queryRawUnsafe('SELECT "ticketHash" FROM "NavigationHandoff" WHERE "ticketHash"=$1 FOR UPDATE',ticketHash);
   const row=await tx.navigationHandoff.findUnique({where:{ticketHash}});if(!row||row.orderId!==orderId||row.checkoutOrigin!==origin||row.revokedAt||row.sourceHash===recipientHash)throw fail();
   // Deterministic grant lock order prevents deadlocks between opposing transfers.

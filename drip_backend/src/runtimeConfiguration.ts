@@ -1,7 +1,11 @@
+import {validateStripeApiVersion} from './stripeApiVersion';
+import {productionConfiguration} from "./productionConfiguration";
 export function runtimeConfiguration(env:NodeJS.ProcessEnv=process.env){
  const port=Number(env.PORT||4000);
  if(!Number.isInteger(port)||port<1||port>65535)throw new Error('INVALID_PORT');
  if(env.DEPLOYMENT_ENV!==undefined&&!['staging','production','development','test'].includes(env.DEPLOYMENT_ENV))throw new Error('INVALID_DEPLOYMENT_ENV');
+ if(env.DEPLOYMENT_ENV==='production')return {port,...productionConfiguration(env)};
+ if(env.NODE_ENV==='production'&&env.DEPLOYMENT_ENV!=='staging')throw new Error('EXPLICIT_DEPLOYMENT_ENV_REQUIRED');
  if(env.DEPLOYMENT_ENV!=='staging')return {port,staging:false as const};
  const required=(name:string)=>{const value=env[name];if(!value?.trim())throw new Error('STAGING_CONFIG_REQUIRED');return value;};
  let database:URL;try{database=new URL(required('DATABASE_URL'));}catch{throw new Error('STAGING_DATABASE_DENIED');}
@@ -18,6 +22,7 @@ export function runtimeConfiguration(env:NodeJS.ProcessEnv=process.env){
  const returnURL=(name:string)=>{let u:URL;try{u=new URL(required(name));}catch{throw new Error('STAGING_REDIRECT_DENIED');}
  if(u.origin!==checkout||u.username||u.password||u.hash||/token|secret/i.test(u.search))throw new Error('STAGING_REDIRECT_DENIED');};
  returnURL('STRIPE_SUCCESS_URL');returnURL('STRIPE_CANCEL_URL');
- if(env.STRIPE_API_VERSION)throw new Error('STAGING_STRIPE_VERSION_OVERRIDE_DENIED');
+ if(env.STRIPE_CURRENCY && !/^eur$/i.test(env.STRIPE_CURRENCY))throw new Error('STAGING_STRIPE_CURRENCY_DENIED');
+ validateStripeApiVersion(env.STRIPE_API_VERSION);
  return {port,staging:true as const,origins:[store,checkout,api],handoffOrigins:{store,checkout}};
 }

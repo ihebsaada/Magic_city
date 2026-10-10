@@ -54,11 +54,11 @@ beforeEach(async()=>{
  await db.stockReservationItem.deleteMany();await db.orderReservation.deleteMany();
  await db.variant.updateMany({data:{reservedQuantity:0}});
  await db.orderIdempotency.deleteMany();await db.orderItem.deleteMany({where:{orderId:{not:legacy.id}}});
- await db.order.deleteMany({where:{id:{not:legacy.id}}});
+ await db.secureOrderPolicy.deleteMany({where:{orderId:{not:legacy.id}}});await db.order.deleteMany({where:{id:{not:legacy.id}}});
  await db.discount.deleteMany();
  await db.discount.create({data:{code:"SYNTHETIC",type:"FIXED",value:"1.00"}});
  order=await db.order.create({data:{customerName:"Synthetic",customerEmail:"synthetic@example.invalid",
-   total:"19.99",originalTotal:"20.99",discountAmount:"1.00",discountCode:"SYNTHETIC",currency:"EUR"}});
+   securePolicy:{create:{policyVersion:1}},total:"19.99",originalTotal:"20.99",discountAmount:"1.00",discountCode:"SYNTHETIC",currency:"EUR"}});
  const d=await db.discount.findUniqueOrThrow({where:{code:"SYNTHETIC"}});
  await db.discount.update({where:{id:d.id},data:{reservedUses:1}});
  await db.orderReservation.create({data:{orderId:order.id,expiresAt:new Date(Date.now()+3600000),discountId:d.id}});
@@ -214,14 +214,14 @@ test("cancelled order with late real payment requires reconciliation rather than
  assert.equal((await confirm(id)).status,409);assert.equal((await row()).status,"CANCELLED");
  assert.equal(await usage(),0);
 });
-test("legacy active session is adopted and reused without creating a new session",async()=>{
+test("registered order with previously saved active session is adopted and reused without creating a new session",async()=>{
  remote.set("cs_legacy",{id:"cs_legacy",mode:"payment",status:"open",payment_status:"unpaid",
    amount_total:1999,currency:"eur",metadata:{order_id:order.id},url:"https://stripe.example.invalid/legacy"});
  await db.order.update({where:{id:order.id},data:{stripeSessionId:"cs_legacy"}});
  assert.equal((await pay()).body.sessionId,"cs_legacy");assert.equal(calls,0);
  paid("cs_legacy");assert.equal((await confirm("cs_legacy")).status,200);assert.equal(await usage(),1);
 });
-test("legacy paid order can be confirmed without retrospectively incrementing discount usage",async()=>{
+test("registered paid order can be confirmed without retrospectively incrementing discount usage",async()=>{
  await db.orderReservation.delete({where:{orderId:order.id}});
  await db.discount.updateMany({data:{reservedUses:0}});
  remote.set("cs_legacy_paid",{id:"cs_legacy_paid",mode:"payment",status:"complete",payment_status:"paid",

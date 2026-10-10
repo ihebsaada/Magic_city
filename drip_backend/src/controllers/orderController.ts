@@ -1,3 +1,4 @@
+import {requireSecureOrder,SecureOrderPolicyError} from "../services/secureOrderPolicy";
 import {GuestAccessError} from "../services/guestOrderAccess";
 // src/controllers/orderController.ts
 import { Request, Response } from "express";
@@ -14,9 +15,9 @@ import {startPayment,reconcilePayment,PaymentError,updateOrderState} from "../se
 // ✅ STRIPE CHECKOUT: second shop sends only {orderId}
 
 function paymentFailure(res: Response,error: unknown) {
- const status=(error instanceof PaymentError || error instanceof ReservationError)?error.status:503;
+ const status=(error instanceof SecureOrderPolicyError || error instanceof PaymentError || error instanceof ReservationError)?error.status:503;
  if(status===503) res.setHeader("Retry-After","2");
- return res.status(status).json({error:(error instanceof PaymentError || error instanceof ReservationError)?error.code:"PAYMENT_RETRY"});
+ return res.status(status).json({error:(error instanceof SecureOrderPolicyError || error instanceof PaymentError || error instanceof ReservationError)?error.code:"PAYMENT_RETRY"});
 }
 export async function createStripeCheckout(req:Request,res:Response) {
  try {return res.json(await startPayment(req.body?.orderId));}
@@ -30,10 +31,11 @@ export async function confirmStripePayment(req:Request,res:Response) {
 }
 export async function createCheckoutIntent(req: Request, res: Response) {
   try {
-    const result = await createIdempotentOrder(req.body, "intent", req.headers["idempotency-key"],req.headers["order-access-token"],req.app.locals.staging===true);
+    const result = await createIdempotentOrder(req.body, "intent", req.headers["idempotency-key"],req.headers["order-access-token"],req.app.locals.shippingEnabled===true,req.app.locals.production===true);
     res.setHeader("Idempotency-Replayed", String(result.replayed));
     return res.status(result.status).json(result.response);
   } catch (err) {
+    if (err instanceof SecureOrderPolicyError) return res.status(err.status).json({error:err.code});
     if (err instanceof GuestAccessError) return res.status(err.status).json({error:err.code});
     if (err instanceof ReservationError) return paymentFailure(res,err);
     if (err instanceof IdempotencyError) return res.status(err.status).json({ error: err.code });
@@ -46,6 +48,7 @@ export async function createCheckoutIntent(req: Request, res: Response) {
 export async function getOrderMinimal(req: Request, res: Response) {
   try {
     const { id } = req.params;
+    await requireSecureOrder(id);
 
     const order = await prisma.order.findUnique({
       where: { id },
@@ -70,6 +73,7 @@ export async function getOrderMinimal(req: Request, res: Response) {
       createdAt: order.createdAt,
     });
   } catch (err) {
+    if(err instanceof SecureOrderPolicyError)return res.status(err.status).json({error:err.code});
     console.error("Order operation failed");
     return res.status(500).json({ error: "Erreur serveur (getOrderMinimal)" });
   }
@@ -172,10 +176,11 @@ export async function adminGetOrderById(req: Request, res: Response) {
 // ✅ OPTIONAL: create order directly (if you still use /orders)
 export async function createOrder(req: Request, res: Response) {
   try {
-    const result = await createIdempotentOrder(req.body, "orders", req.headers["idempotency-key"],req.headers["order-access-token"],req.app.locals.staging===true);
+    const result = await createIdempotentOrder(req.body, "orders", req.headers["idempotency-key"],req.headers["order-access-token"],req.app.locals.shippingEnabled===true,req.app.locals.production===true);
     res.setHeader("Idempotency-Replayed", String(result.replayed));
     return res.status(result.status).json(result.response);
   } catch (err) {
+    if(err instanceof SecureOrderPolicyError)return res.status(err.status).json({error:err.code});
     if (err instanceof GuestAccessError) return res.status(err.status).json({error:err.code});
     if (err instanceof ReservationError) return paymentFailure(res,err);
     if (err instanceof IdempotencyError) return res.status(err.status).json({ error: err.code });
@@ -202,7 +207,7 @@ export async function adminUpdateOrder(req: Request, res: Response) {
     if(status==="CANCELLED")await reconcileReservation(id).catch(()=>{});
     return res.json({ ok: true, id: updated.id });
   } catch (err) {
-    if (err instanceof PaymentError || err instanceof ReservationError) return paymentFailure(res,err);
+    if (err instanceof SecureOrderPolicyError || err instanceof PaymentError || err instanceof ReservationError) return paymentFailure(res,err);
     console.error("Order operation failed");
     return res.status(500).json({ error: "Erreur serveur (adminUpdateOrder)" });
   }

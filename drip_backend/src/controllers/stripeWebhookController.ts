@@ -1,3 +1,5 @@
+import {quarantineHistoricalWebhook} from '../services/historicalWebhookReceipt';
+import {requireSecureOrder,SecureOrderPolicyError} from "../services/secureOrderPolicy";
 
 import {Request,Response} from "express";
 import Stripe from "stripe";
@@ -16,16 +18,27 @@ export async function stripeWebhook(req:Request,res:Response) {
   catch {return res.status(400).json({error:"Invalid webhook signature"});}
   try {
     if(req.app.locals.staging && event.livemode!==false)return res.status(400).json({error:"STAGING_LIVE_EVENT_DENIED"});
+    if(req.app.locals.production && event.livemode!==true)return res.status(400).json({error:"PRODUCTION_TEST_EVENT_DENIED"});
     if(handled.has(event.type)) {
       const s=event.data.object as Stripe.Checkout.Session;
       if(!s.id) return res.status(400).json({error:"Missing session ID"});
+      if(s.metadata?.order_id)await requireSecureOrder(s.metadata.order_id);
       const result=await reconcilePayment(s.id,{id:event.id,type:event.type});
       if(event.type==="checkout.session.expired" && !result.paid && "orderId" in result && typeof result.orderId==="string")
         await reconcileReservation(result.orderId);
     }
     return res.json({received:true});
   } catch(error) {
-    return res.status((error instanceof PaymentError || error instanceof ReservationError)?error.status:503)
-      .json({error:(error instanceof PaymentError || error instanceof ReservationError)?error.code:"WEBHOOK_RETRY"});
+    if(error instanceof SecureOrderPolicyError && error.code==='HISTORICAL_ORDER_READ_ONLY' && error.orderId) {
+      try {
+        await quarantineHistoricalWebhook(event,req.body,error.orderId);
+        return res.json({received:true,commercialProcessing:false,disposition:'historical_quarantined',reviewRequired:true});
+      } catch(receiptError) {
+        return res.status(receiptError instanceof SecureOrderPolicyError?receiptError.status:503)
+          .json({error:receiptError instanceof SecureOrderPolicyError?receiptError.code:'WEBHOOK_QUARANTINE_RETRY'});
+      }
+    }
+    return res.status((error instanceof SecureOrderPolicyError || error instanceof PaymentError || error instanceof ReservationError)?error.status:503)
+      .json({error:(error instanceof SecureOrderPolicyError || error instanceof PaymentError || error instanceof ReservationError)?error.code:"WEBHOOK_RETRY"});
   }
 }
