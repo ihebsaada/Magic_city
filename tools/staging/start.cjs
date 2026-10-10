@@ -2,9 +2,13 @@ const fs=require("node:fs"),path=require("node:path"),net=require("node:net");
 const {spawn,spawnSync}=require("node:child_process");
 const root=path.resolve(__dirname,"../.."),parent=path.dirname(root);
 const backend=path.join(parent,"Magic_city_backend_security/drip_backend"),store=path.join(root,"drip_frontend"),checkout=path.join(parent,"Magic_city_checkout_security/seamless_checkout_flow");
+const docker18=process.argv.includes('--docker18');
+const docker='C:/Users/hp/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe';
+const dockerName='magiccity-browser-synthetic-'+Date.now();let dockerStarted=false;
 const finalFlow=process.argv.includes("--final-flow");
 const automatic=process.argv.includes("--automatic-handoff");
 const resume=process.argv.find(a=>a.startsWith("--resume="))?.slice(9);
+if(docker18&&resume)throw new Error('Docker validation always requires a NEW synthetic cluster');
 if(resume&&!/^run-[0-9]+$/.test(resume))throw new Error("Invalid isolated resume name");
 const pg="C:/Program Files/PostgreSQL/17/bin",runtime=path.join(__dirname,".runtime",resume||"run-"+Date.now());
 const env={};for(const k of ["PATH","Path","SystemRoot","TEMP","TMP"])if(process.env[k])env[k]=process.env[k];
@@ -12,17 +16,29 @@ Object.assign(env,{NAVIGATION_HANDOFF_SECRET:"synthetic-navigation-key-for-isola
  CHECKOUT_APP_URL:"http://127.0.0.1:5174",STRIPE_SUCCESS_URL:"http://127.0.0.1:5174/order-confirmation?orderId={ORDER_ID}&session_id={CHECKOUT_SESSION_ID}",STRIPE_CANCEL_URL:"http://127.0.0.1:5174/checkout-landing?orderId={ORDER_ID}"});
 const children=[];let started=false,stopping=false;
 function run(exe,args){const r=spawnSync(exe,args,{cwd:backend,env,encoding:"utf8",stdio:exe.endsWith("pg_ctl.exe")?"ignore":"pipe",timeout:60000});if(r.status!==0)throw new Error("Staging command failed: "+path.basename(exe)+" "+(r.stderr||r.stdout||r.error?.message||""));return r;}
-function stop(){if(stopping)return;stopping=true;for(const c of children)c.kill();if(started)run(path.join(pg,"pg_ctl.exe"),["-D",path.join(runtime,"pg"),"-w","stop","-m","fast"]);console.log("Staging stopped. Synthetic cluster retained: "+runtime);}
+function stop(){if(stopping)return;stopping=true;for(const c of children)c.kill();if(dockerStarted)run(docker,["--host","npipe:////./pipe/dockerDesktopLinuxEngine","stop",dockerName]);if(started&&!docker18)run(path.join(pg,"pg_ctl.exe"),["-D",path.join(runtime,"pg"),"-w","stop","-m","fast"]);console.log((docker18?"Staging stopped. Temporary Docker data discarded; metadata retained: ":"Staging stopped. Synthetic cluster retained: ")+runtime);}
 process.on("SIGINT",()=>{stop();process.exit();});process.on("SIGTERM",()=>{stop();process.exit();});
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
  for(const p of [4100,4101,5173,5174])await new Promise((resolve,reject)=>{const s=net.createServer();s.once("error",()=>reject(new Error("Port occupied: "+p)));s.listen(p,"127.0.0.1",()=>s.close(resolve));});
  fs.mkdirSync(runtime,{recursive:true});
- const port=resume?Number(new URL(JSON.parse(fs.readFileSync(path.join(runtime,"staging-environment.json"),"utf8")).database).port):await new Promise(resolve=>{const s=net.createServer();s.listen(0,"127.0.0.1",()=>{const p=s.address().port;s.close(()=>resolve(p));});});
+ let port=resume?Number(new URL(JSON.parse(fs.readFileSync(path.join(runtime,"staging-environment.json"),"utf8")).database).port):await new Promise(resolve=>{const s=net.createServer();s.listen(0,"127.0.0.1",()=>{const p=s.address().port;s.close(()=>resolve(p));});});
  if(resume){const status=spawnSync(path.join(pg,"pg_ctl.exe"),["-D",path.join(runtime,"pg"),"status"],{env,stdio:"ignore"});if(status.status===0)throw new Error("Resume cluster already running; leave it untouched");}
+ if(docker18){
+  const d=args=>run(docker,['--host','npipe:////./pipe/dockerDesktopLinuxEngine',...args]);
+  const image=d(['image','inspect','--format','{{.Id}}','postgres:18']).stdout.trim();
+  if(!/^sha256:[a-f0-9]{64}$/.test(image))throw Error('Local cached PG image unavailable');
+  d(['run','-d','--pull','never','--name',dockerName,'--publish','127.0.0.1::5432','--tmpfs','/var/lib/postgresql:rw','-e','POSTGRES_USER=magic_staging','-e','POSTGRES_DB=magic_staging','-e','POSTGRES_HOST_AUTH_METHOD=trust',image]);dockerStarted=true;
+  port=Number(d(['port',dockerName,'5432/tcp']).stdout.trim().split(':').pop());if(!Number.isInteger(port)||port<1)throw Error('Invalid local Docker port');
+  let ready=false;for(let i=0;i<60;i++){const q=spawnSync(docker,['--host','npipe:////./pipe/dockerDesktopLinuxEngine','exec',dockerName,'pg_isready','-h','127.0.0.1','-U','magic_staging','-d','magic_staging'],{env,encoding:'utf8'});if(q.status===0){ready=true;break;}await pause(500);}if(!ready)throw Error('Docker PG not ready');
+  const version=d(['exec',dockerName,'psql','-h','127.0.0.1','-U','magic_staging','-d','magic_staging','-Atc','SHOW server_version']).stdout.trim();if(!/^18\.6(?: |$)/.test(version))throw Error('PostgreSQL 18.6 required');
+  fs.writeFileSync(path.join(runtime,'docker-identity.json'),JSON.stringify({container:dockerName,image,version,syntheticOnly:true}));
+  env.STAGING_OFFLINE_NETWORK='true';
+ }else{
  if(!resume)run(path.join(pg,"initdb.exe"),["-D",path.join(runtime,"pg"),"-U","magic_staging","-A","trust","--encoding=UTF8","--no-locale"]);
  run(path.join(pg,"pg_ctl.exe"),["-D",path.join(runtime,"pg"),"-l",path.join(runtime,"postgres.log"),"-o","-h 127.0.0.1 -p "+port,"-w","start"]);started=true;
  if(!resume)run(path.join(pg,"createdb.exe"),["-h","127.0.0.1","-p",String(port),"-U","magic_staging","magic_staging"]);
+ }
  env.DATABASE_URL="postgresql://magic_staging@127.0.0.1:"+port+"/magic_staging";
  const cli=path.join(backend,"node_modules/prisma/build/index.js");
  run(process.execPath,[cli,"migrate","deploy"]);

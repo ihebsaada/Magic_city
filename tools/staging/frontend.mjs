@@ -7,7 +7,7 @@ if(!root||!['5173','5174'].includes(process.env.STAGING_FRONTEND_PORT))throw new
 const require=createRequire(path.join(root,'package.json'));
 const {createServer,build}=await import(pathToFileURL(path.join(path.dirname(require.resolve('vite/package.json')),'dist/node/index.js')));
 const nonce='synthetic-staging-only-nonce';
-const checkoutMediaHeaders=headers=>({...headers,'Content-Security-Policy':headers['Content-Security-Policy'].replace('data:; font-src','data: https://images.unsplash.com; font-src')});
+const checkoutMediaHeaders=headers=>process.env.STAGING_OFFLINE_NETWORK==='true'?headers:({...headers,'Content-Security-Policy':headers['Content-Security-Policy'].replace('data:; font-src','data: https://images.unsplash.com; font-src')});
 const prefixedBuild=process.env.STAGING_CHECKOUT_BASE==='/checkout/';
 const options={root,mode:'staging',envDir:process.env.STAGING_ENV_DIR,html:{cspNonce:nonce},
  ...(prefixedBuild?{base:'/checkout/',define:{'import.meta.env.VITE_ROUTER_BASENAME':JSON.stringify('/checkout/')}}:{}),

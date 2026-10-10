@@ -1,0 +1,12 @@
+# Generated evidence only; keep reports, SQL and reusable local runners.
+*.log
+*.json
+/build-checkout/
+/build-store/
+/legacy-compatibility/
+/remediation/
+/release-review/
+/secure-policy/baseline/
+/secure-policy/store-build/
+/secure-policy/checkout-build/
+/pg18-simulation/*.txt

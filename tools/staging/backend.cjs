@@ -104,14 +104,24 @@ button.addEventListener("click",async()=>{
   window.location.assign(destination.href);
  }catch{status.textContent="Verification interrompue. Reessayez le meme paiement simule ou rechargez cette page.";button.disabled=false;}
 });`;
-  res.type("html").send('<h1>Paiement synthetique local</h1><p>EUR '+(s.amount_total/100).toFixed(2)+'</p><button id="simulate">Payer en simulation</button><p id="status" role="status"></p><script nonce="'+nonce+'">'+script+'</script>');
+  const outcomes=`for(const action of ['decline','cancel','expire'])document.getElementById(action).addEventListener('click',async()=>{const r=await fetch('/session/'+encodeURIComponent(sessionId)+'/outcome',{method:'POST',headers:{'Content-Type':'application/json','X-Simulator-Token':proof},body:JSON.stringify({action})});if(!r.ok){status.textContent='SIMULATOR_RETRY';return;}const result=await r.json();if(result.redirect){const u=new URL(result.redirect);const expected=new URL(returnBase);expected.pathname=expected.pathname.replace('/order-confirmation','/checkout-landing');if(u.origin!==expected.origin||u.pathname!==expected.pathname||u.username||u.password||u.hash)throw Error('Invalid synthetic return');window.location.assign(u.href);}else status.textContent=result.status;});`;
+  res.type("html").send('<h1>Paiement synthetique local</h1><p>EUR '+(s.amount_total/100).toFixed(2)+'</p><button id="simulate">Payer en simulation</button><button id="decline">Refuser en simulation</button><button id="cancel">Annuler en simulation</button><button id="expire">Expirer en simulation</button><p id="status" role="status"></p><script nonce="'+nonce+'">'+script+outcomes+'</script>');
  }catch{res.sendStatus(404);}
 });
-sim.use("/session/:id/complete",(req,res,next)=>{
+sim.use(["/session/:id/complete","/session/:id/outcome"],(req,res,next)=>{
  if(req.get("Origin")!=="http://127.0.0.1:4101")return res.status(403).json({error:"STAGING_ORIGIN_DENIED"});
  if(req.method==="POST"&&(!req.is("application/json")||!validPageProof(req.get("X-Simulator-Token"),req.params.id)))
   return res.status(403).json({error:"SIMULATOR_SESSION_DENIED"});
  next();
+});
+// Provider-only synthetic outcomes; never writes Order/OrderItem directly.
+sim.post('/session/:id/outcome',async(req,res)=>{
+ try{
+  const action=req.body?.action;if(!['decline','cancel','expire'].includes(action))return res.sendStatus(400);
+  const s=await db.$transaction(async tx=>{const rows=await tx.$queryRawUnsafe('SELECT payload FROM staging_simulator.sessions WHERE id=$1 FOR UPDATE',req.params.id);if(!rows.length)throw Error('Unknown synthetic session');const v=rows[0].payload;if(v.payment_status==='paid')throw Error('Paid synthetic session cannot regress');if(action==='expire'){v.status='expired';await tx.$executeRawUnsafe('UPDATE staging_simulator.sessions SET payload=$2::jsonb WHERE id=$1',v.id,JSON.stringify(v));}return v;});
+  if(action==='expire'){const delivery=await emit(s.id,'checkout.session.expired');if(delivery.status>=400)return res.status(503).json({error:'SIMULATOR_RETRY'});}
+  res.json(action==='cancel'?{redirect:returnBase(s).replace('/order-confirmation','/checkout-landing')+'?orderId='+encodeURIComponent(s.metadata.order_id)}:{status:action==='decline'?'Pagamento rifiutato (simulazione)':'Sessione scaduta (simulazione)'});
+ }catch{res.status(409).json({error:'SIMULATOR_OUTCOME_DENIED'});}
 });
 sim.post("/session/:id/complete",async(req,res)=>{
  try{
@@ -143,7 +153,7 @@ sim.get("/__staging/stats",async(_req,res)=>{const rows=await db.$queryRawUnsafe
  for(let i=1;i<=40;i++)await db.product.create({data:{handle:"stage-"+String(i).padStart(3,"0"),title:"Synthetic Product "+i,vendor:"Synthetic",option1Name:"Size",option2Name:"Color",descriptionHtml:"<p>Only synthetic staging data.</p>",collections:{create:{collectionId:collection.id}},images:{create:{src:"http://127.0.0.1:4100/__staging/image.svg",position:1}},variants:{create:[{sku:"STAGE-"+i+"-M",option1:"M",option2:"Blue",price:"11.00",inventoryQuantity:i===40?1:5},{sku:"STAGE-"+i+"-L",option1:"L",option2:"Red",price:"99.90",inventoryQuantity:2}]}}});
  await db.discount.create({data:{code:"STAGE10",type:"PERCENTAGE",value:"10",usageLimit:2}});
  await db.discount.create({data:{code:"STAGE-LAST",type:"FIXED",value:"1",usageLimit:1}});
- await db.order.create({data:{id:"stage-legacy",customerName:"Synthetic Legacy",customerEmail:"legacy@example.invalid",total:"12.34"}});
+ await db.order.create({data:{id:"stage-legacy",customerName:"Synthetic Legacy",customerEmail:"legacy@example.invalid",total:"12.34",items:{create:{productTitle:"Synthetic Historical",productHandle:"synthetic-history",quantity:1,unitPrice:"12.34"}}}});
  }
  const servers=[app.listen(4100,"127.0.0.1"),sim.listen(4101,"127.0.0.1")];
  const stop=()=>{servers.forEach(s=>s.closeAllConnections());servers.forEach(s=>s.close());void db.$disconnect().finally(()=>process.exit());};
