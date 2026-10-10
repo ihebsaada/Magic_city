@@ -151,7 +151,7 @@ export async function loadCommonOrder(orderId:string,signal?:AbortSignal):Promis
  save({...current,token:grant.token,authorized:true});return order;
 }
 
-export function navigationEnabled(){return import.meta.env.MODE==='staging'&&import.meta.env.VITE_NAVIGATION_HANDOFF_ENABLED==='true';}
+export function navigationEnabled(){return ['staging','production'].includes(import.meta.env.MODE)&&import.meta.env.VITE_NAVIGATION_HANDOFF_ENABLED==='true';}
 export function loadNavigationOrder(orderId:string,signal?:AbortSignal):Promise<OrderMin>{
  return single('navigation:'+orderId,async()=>{
   if(!navigationEnabled())throw new CheckoutError(401,'ORDER_ACCESS_DENIED');

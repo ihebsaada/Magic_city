@@ -33,5 +33,13 @@ const automaticRun=spawnSync(process.execPath,["--input-type=commonjs"],{cwd:roo
 const mirror=await build({absWorkingDir:root,entryPoints:["tests/mirror-parity.test.tsx"],bundle:true,write:false,platform:"node",format:"cjs",packages:"external",jsx:"automatic",alias:{"@":path.join(root,"src")},define:{"import.meta.env":"{}"}});
 const mirrorRun=spawnSync(process.execPath,["--input-type=commonjs"],{cwd:root,input:mirror.outputFiles[0].text,stdio:["pipe","inherit","inherit"]});if(mirrorRun.error)throw mirrorRun.error;if(mirrorRun.status!==0)process.exitCode=mirrorRun.status??1;
 
-const nav=await build({absWorkingDir:root,entryPoints:['tests/navigation-handoff.test.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',define:{'import.meta.env':JSON.stringify({MODE:'staging',VITE_NAVIGATION_HANDOFF_ENABLED:'true'})}});
+for(const mode of ['staging','production']){
+const nav=await build({absWorkingDir:root,entryPoints:['tests/navigation-handoff.test.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',define:{'import.meta.env':JSON.stringify({MODE:mode,VITE_NAVIGATION_HANDOFF_ENABLED:'true'})}});
 const navRun=spawnSync(process.execPath,['--input-type=commonjs'],{cwd:root,input:nav.outputFiles[0].text,stdio:['pipe','inherit','inherit']});if(navRun.status!==0)process.exitCode=navRun.status??1;
+
+}
+
+for(const [mode,flag,expected] of [['production','true',true],['production','false',false],['staging','true',true],['development','true',false],['test','true',false],['production',undefined,false]]){
+ const bundle=await build({absWorkingDir:root,entryPoints:['tests/production-mode.test.ts'],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',alias:{'@':path.join(root,'src')},define:{'import.meta.env':JSON.stringify({MODE:mode,VITE_NAVIGATION_HANDOFF_ENABLED:flag})}});
+ const child=spawnSync(process.execPath,['--input-type=commonjs'],{cwd:root,input:bundle.outputFiles[0].text,env:{...process.env,EXPECT_NAVIGATION:String(expected)},stdio:['pipe','inherit','inherit']});if(child.status!==0)process.exitCode=child.status??1;
+}
