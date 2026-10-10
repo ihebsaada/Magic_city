@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-for (const entry of ["tests/product-grid.test.tsx", "tests/product-loading.test.tsx", "tests/checkout-validation.test.tsx", "tests/store-backend-integration.test.tsx", "tests/store-handoff.test.tsx", "tests/historical-loading.test.tsx", "tests/automatic-handoff.test.ts"]) {
+for (const entry of ["tests/payment-warning.test.tsx", "tests/product-grid.test.tsx", "tests/product-loading.test.tsx", "tests/checkout-validation.test.tsx", "tests/store-backend-integration.test.tsx", "tests/store-handoff.test.tsx", "tests/historical-loading.test.tsx", "tests/automatic-handoff.test.ts"]) {
 const result = await build({
   absWorkingDir: root,
   entryPoints: [entry],

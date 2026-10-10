@@ -7,6 +7,7 @@ type Options = {
   currentOrderId: () => string | null;
   onPaid: () => void;
   onAccessRequired?: () => void;
+  onVerified?: () => void;
   events?: Pick<Window, "addEventListener" | "removeEventListener">;
   read?: (id: string, signal: AbortSignal) => Promise<{ id: string; paymentStatus: string }>;
   retryDelayMs?: number;
@@ -14,7 +15,7 @@ type Options = {
 };
 
 // One bounded budget shared by scheduled retries and reconnection/focus events.
-export function startPaidOrderCheck({ orderId, currentOrderId, onPaid, onAccessRequired, events,
+export function startPaidOrderCheck({ orderId, currentOrderId, onPaid, onAccessRequired, onVerified, events,
   read = (id, signal) => {
     const token = orderAccessToken(id);
     // Missing credentials require verified recovery, never an anonymous fallback.
@@ -43,12 +44,15 @@ export function startPaidOrderCheck({ orderId, currentOrderId, onPaid, onAccessR
     attempts++;
     try {
       const order = await read(orderId, controller.signal);
+      if (!stopped && currentOrderId() === orderId && order.id === orderId) {
+        onVerified?.();
+      }
       if (!stopped && currentOrderId() === orderId && order.id === orderId && order.paymentStatus === "PAID") {
         onPaid();
         stop();
       }
     } catch (error) {
-      if (!stopped && currentOrderId() === orderId && error instanceof HttpError && error.status === 401) onAccessRequired?.();
+      if (!stopped && currentOrderId() === orderId && error instanceof HttpError && (error.status === 401 || error.status === 403)) onAccessRequired?.();
       if (error instanceof HttpError && error.status < 500) stop();
     } finally {
       running = false;
