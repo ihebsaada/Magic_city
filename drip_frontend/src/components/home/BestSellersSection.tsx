@@ -1,3 +1,4 @@
+import {ProductGrid} from "@/components/product/ProductGrid";
 // src/components/home/BestSellersSection.tsx (ou où il est placé)
 import { useCatalogue } from "@/hooks/useProducts";
 import { QueryFeedback } from "@/components/QueryFeedback";
@@ -23,11 +24,11 @@ export const BestSellersSection = () => {
         </div>
 
         <QueryFeedback loading={query.isFetching} error={query.isError} hasData={query.data !== undefined} onRetry={() => { void query.refetch(); }} />
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <ProductGrid className="sm:grid-cols-2 lg:grid-cols-4">
           {products.map((p) => (
             <ProductCard key={p.id} product={p} />
           ))}
-        </div>
+        </ProductGrid>
       </div>
     </section>
   );

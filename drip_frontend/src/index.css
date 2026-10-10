@@ -287,3 +287,17 @@ All colors MUST be HSL.
   stroke: white;
   transition: all 0.1s ease;
 }
+
+/* Compact product cards only below the existing sm breakpoint. */
+@media (max-width: 639px) {
+  .store-product-grid > * { min-width: 0; }
+  .store-product-grid a { min-width: 0; }
+  .store-product-grid h3 { min-height: 2.5rem; font-size: 0.75rem; line-height: 1.25rem; overflow-wrap: anywhere; }
+  .store-product-grid p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.625rem; }
+  .store-product-grid .mt-3 { margin-top: 0.5rem; }
+  .store-product-grid .mt-3 > div { flex-wrap: wrap; gap: 0.25rem; font-size: 0.75rem; }
+  .store-product-grid .mt-3 > div > span { max-width: 100%; overflow-wrap: anywhere; }
+  .store-product-grid .mt-3 > div > .text-sm { font-size: 0.625rem; }
+  .store-product-grid .absolute.left-2 { left: 0.25rem; top: 0.25rem; max-width: calc(100% - 2.75rem); }
+  .store-product-grid .absolute.left-2 > * { padding: 0.125rem 0.25rem; font-size: 0.625rem; overflow-wrap: anywhere; }
+}

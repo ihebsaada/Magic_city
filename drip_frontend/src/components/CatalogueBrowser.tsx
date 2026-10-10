@@ -1,3 +1,4 @@
+import {ProductGrid} from "@/components/product/ProductGrid";
 import {Button} from '@/components/ui/button';
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select';
 import { useSearchParams } from 'react-router-dom';
@@ -44,7 +45,7 @@ export function CatalogueBrowser({ collection }: { collection?: string }) {
     {!collection && <QueryFeedback error={collections.isError} hasData={collections.data !== undefined} onRetry={() => { void collections.refetch(); }} />}
     {unsupportedNew ? <p role="status">Le novità non sono ancora disponibili nel catalogo.</p> : <>
       <QueryFeedback loading={query.isFetching} error={query.isError} hasData={query.data !== undefined} onRetry={() => { void query.refetch(); }} />
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{products.map((item) => <ProductCard key={item.id} product={cardAsProduct(item)} />)}</div>
+      <ProductGrid className="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{products.map((item) => <ProductCard key={item.id} product={cardAsProduct(item)} />)}</ProductGrid>
       {!query.isPending && !query.isError && !products.length && <div className="py-16 text-center"><p className="text-muted-foreground">{collection ? "Nessun prodotto trovato in questa collezione" : "Nessun prodotto trovato"}</p></div>}
       {query.data && <nav aria-label="Pagine catalogo" aria-busy={query.isFetching} className="mt-10 flex flex-wrap justify-center items-center gap-3 min-h-12">
         <Button variant="outline" className="min-h-11 min-w-24 rounded-full px-5" disabled={page <= 1 || query.isFetching} onClick={() => update('page', String(page - 1))}>Precedente</Button>
