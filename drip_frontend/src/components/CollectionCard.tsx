@@ -11,17 +11,17 @@ export function CollectionCard({ collection, showCount = false }: {
   const query = useCatalogue({ collection: collection.handle, pageSize: 1 });
   const image = query.data?.items[0]?.mainImage;
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <Link to={`/collections/${collection.handle}`} className="group relative block overflow-hidden rounded-sm bg-muted">
         <div className="aspect-[4/5] overflow-hidden">
           {image && <img src={image} alt={collection.title} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />}
           {query.isPending && <span role="status" className="block p-4 text-sm">Caricamento immagine...</span>}
           <div className="absolute inset-0 bg-gradient-to-t from-primary/90 to-transparent" />
         </div>
-        <div className="absolute bottom-0 left-0 right-0 p-6 text-primary-foreground">
-          <h2 className={(showCount ? "mb-1" : "mb-2") + " font-serif text-2xl font-bold"}>{collection.title}</h2>
-          {showCount && <p className="mb-3 text-sm text-primary-foreground/80">{collection.productsCount} prodotti</p>}
-          <span className="inline-flex items-center text-sm font-medium transition-transform group-hover:translate-x-1">Scopri la collezione<ArrowRight className="ml-2 h-4 w-4" /></span>
+        <div className="absolute bottom-0 left-0 right-0 p-2 sm:p-6 text-primary-foreground">
+          <h2 className={(showCount ? "mb-1" : "mb-2") + " font-serif text-sm sm:text-2xl font-bold break-words line-clamp-2 sm:line-clamp-none"}>{collection.title}</h2>
+          {showCount && <p className="mb-2 sm:mb-3 text-xs sm:text-sm text-primary-foreground/80">{collection.productsCount} prodotti</p>}
+          <span className="inline-flex max-w-full items-center text-xs sm:text-sm font-medium transition-transform group-hover:translate-x-1">Scopri la collezione<ArrowRight className="ml-1 sm:ml-2 h-4 w-4 shrink-0" /></span>
         </div>
       </Link>
       {query.isError && <div role="alert" className="p-2 text-sm">

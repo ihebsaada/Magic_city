@@ -1,3 +1,4 @@
+import {mobileTwoColumnGrid} from "@/components/product/ProductGrid";
 import { useCollections } from '@/hooks/useProducts';
 import { CollectionCard } from '@/components/CollectionCard';
 import { QueryFeedback } from '@/components/QueryFeedback';
@@ -10,7 +11,7 @@ export const CollectionsSection = () => {
         <p className="mx-auto max-w-2xl text-muted-foreground">Una selezione curata delle migliori sneakers luxury dai brand più esclusivi del mondo</p>
       </div>
       <QueryFeedback loading={query.isFetching} error={query.isError} hasData={query.data !== undefined} onRetry={() => { void query.refetch(); }} />
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className={`${mobileTwoColumnGrid} sm:grid-cols-2 lg:grid-cols-3`}>
         {(query.data ?? []).slice(0, 6).map((collection) => <CollectionCard key={collection.handle} collection={collection} />)}
       </div>
       {!query.isPending && !query.isError && query.data?.length === 0 && <p>Nessuna collezione disponibile.</p>}
