@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Real environment files and generated test artifacts
+.env
+.env.*
+!.env.example
+!.env.staging.example
+.tests/
+tests/*RESULTS*.json
