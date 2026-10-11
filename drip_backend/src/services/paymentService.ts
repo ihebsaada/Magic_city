@@ -13,6 +13,8 @@ const cents = (o: Order) => new Prisma.Decimal(o.total).mul(100).toDecimalPlaces
 const latest = (tx: Prisma.TransactionClient, orderId: string) =>
   tx.paymentAttempt.findFirst({where:{orderId},orderBy:{generation:"desc"}});
 async function lockedOrder(tx: Prisma.TransactionClient, id: string) {
+  // Reject archives before any write-intent lock; recheck after locking modern orders.
+  await requireSecureOrder(id,tx);
   await tx.$queryRawUnsafe('SELECT "id" FROM "Order" WHERE "id" = $1 FOR UPDATE', id);
   await requireSecureOrder(id,tx);
   const order = await tx.order.findUnique({where:{id}});
