@@ -1,106 +1,28 @@
-// export default OrderConfirmation;
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
-import { CheckCircle, Loader2, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { clearCart } from "@/lib/cart";
+import {storeUrl} from "@/lib/storeNavigation";
+import {CheckCircle,Loader2,AlertCircle} from "lucide-react";
+import {Card,CardContent,CardHeader,CardTitle} from "@/components/ui/card";
+import {Separator} from "@/components/ui/separator";
+import {useEffect,useRef,useState} from "react";
+import {Link,useSearchParams,useNavigate} from "react-router-dom";
 import Navigation from "@/components/Navigation";
-
-const API_URL =
-  import.meta.env.VITE_PRIMARY_API_URL ?? "http://localhost:4000/api";
-
-type ConfirmResponse = {
-  paid: boolean;
-  error?: string;
-  // If your backend ever sends more, we’ll use it safely:
-  order?: {
-    id?: string;
-    status?: string;
-    total?: number; // cents
-    createdAt?: string;
-    items?: { genericName: string; price: number; quantity: number }[];
-  };
-};
-
-const OrderConfirmation = () => {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-
-  // Support both just in case: ?orderId=... (your snippet) or ?order_id=...
-  const orderId = useMemo(
-    () => searchParams.get("orderId") ?? searchParams.get("order_id"),
-    [searchParams]
-  );
-  const sessionId = useMemo(
-    () => searchParams.get("session_id"),
-    [searchParams]
-  );
-
-  const [loading, setLoading] = useState(true);
-  const [paid, setPaid] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // Optional: if confirm endpoint returns order details, we’ll display them
-  const [order, setOrder] = useState<ConfirmResponse["order"] | null>(null);
-
-  useEffect(() => {
-    if (!sessionId) {
-      setError("Session_id (Stripe) mancante.");
-      setLoading(false);
-      return;
-    }
-
-    (async () => {
-      try {
-        const res = await fetch(
-          `${API_URL}/pay/confirm?session_id=${encodeURIComponent(sessionId)}`
-        );
-        const data: ConfirmResponse = await res.json();
-
-        if (!res.ok) throw new Error(data?.error ?? "Conferma non riuscita");
-
-        const isPaid = Boolean(data.paid);
-        setPaid(isPaid);
-
-        if (isPaid) {
-          // Only clear cart AFTER payment is confirmed
-          clearCart();
-        }
-
-        // If backend provides order details, store them (safe)
-        if (data?.order) setOrder(data.order);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [sessionId]);
-
-  const formatPrice = (cents: number) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(cents / 100);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const backToCheckoutHref = orderId
-    ? `/checkout-landing?orderId=${encodeURIComponent(orderId)}`
-    : "/checkout-landing";
-  const SHOP_URL = import.meta.env.VITE_SHOP_URL ?? "/";
-
+import {Button} from "@/components/ui/button";
+import {confirm,readOrder,formatMoney,errorMessage,type OrderMin} from "@/lib/secureCheckout";
+export default function OrderConfirmation(){
+ const [params]=useSearchParams(),orderId=params.get("orderId")||params.get("order_id")||"",sessionId=params.get("session_id")||"";
+ const [order,setOrder]=useState<OrderMin|null>(null),[paid,setPaid]=useState(false),[error,setError]=useState(""),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
+ const budget=useRef(0);
+ const navigate=useNavigate();
+ const backToCheckoutHref="/checkout-landing?orderId="+encodeURIComponent(orderId);
+ const formatDate=(value:string)=>new Date(value).toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"});
+ useEffect(()=>{
+  const c=new AbortController();setOrder(null);setPaid(false);setError("");
+  if(budget.current>=3){setError("Verifica da completare con assistenza. Nessun nuovo ordine.");return;}
+  budget.current++;setLoading(true);
+  void (async()=>{try{const result=await confirm(orderId,sessionId,c.signal);const o=await readOrder(orderId,c.signal);
+   if(!c.signal.aborted){setOrder(o);setPaid(result.paid&&o.paymentStatus==="PAID");}
+  }catch(e){if(!c.signal.aborted)setError(errorMessage(e));}finally{if(!c.signal.aborted)setLoading(false);}})();
+  return()=>c.abort();
+ },[orderId,sessionId,revision]);
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navigation />
@@ -172,60 +94,11 @@ const OrderConfirmation = () => {
                   </div>
                 </div>
 
-                {/* Keep UI sections, but only show items/total if backend provided them */}
-                {order?.items?.length ? (
-                  <>
-                    <Separator />
-                    <div>
-                      <h3 className="font-medium mb-4">Articoli dell'ordine</h3>
-                      <div className="space-y-3">
-                        {order.items.map((item, index) => (
-                          <div
-                            key={index}
-                            className="flex justify-between items-center py-2"
-                          >
-                            <div>
-                              <span className="font-medium">
-                                {item.genericName}
-                              </span>
-                              <span className="text-muted-foreground ml-2">
-                                × {item.quantity}
-                              </span>
-                            </div>
-                            <span className="font-mono">
-                              {formatPrice(item.price * item.quantity)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {typeof order.total === "number" && (
-                      <>
-                        <Separator />
-                        <div className="flex justify-between items-center">
-                          <span className="text-lg font-medium">
-                            Totale pagato
-                          </span>
-                          <span className="text-2xl font-bold font-mono">
-                            {formatPrice(order.total)}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <Separator />
-                    <p className="text-sm text-muted-foreground">
-                      Il pagamento è stato confermato.
-                    </p>
-                  </>
-                )}
-
+                <Separator />
+                {order && <div className="flex justify-between items-center"><span className="text-lg font-medium">Totale pagato</span><span className="text-2xl font-bold font-mono">{formatMoney(order.total,order.currency)}</span></div>}
                 <Button
                   onClick={() => {
-                    window.location.href = SHOP_URL;
+                    window.location.assign(storeUrl("/"));
                   }}
                   className="w-full"
                   variant="outline"
@@ -264,6 +137,4 @@ const OrderConfirmation = () => {
       </footer>
     </div>
   );
-};
-
-export default OrderConfirmation;
+}

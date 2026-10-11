@@ -14,14 +14,14 @@ const Navigation = () => {
     };
 
     updateCartCount();
-    
+
     // Update cart count on storage changes
     const handleStorageChange = () => updateCartCount();
     window.addEventListener("storage", handleStorageChange);
-    
+
     // Poll for changes since sessionStorage doesn't trigger events in same tab
     const interval = setInterval(updateCartCount, 1000);
-    
+
     return () => {
       window.removeEventListener("storage", handleStorageChange);
       clearInterval(interval);

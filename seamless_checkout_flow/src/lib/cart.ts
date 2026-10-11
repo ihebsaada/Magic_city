@@ -46,15 +46,15 @@ export const saveCart = (cart: CartItem[]): void => {
 export const addToCart = (item: Omit<CartItem, 'genericName'>): void => {
   const cart = getCart();
   const existingIndex = cart.findIndex(i => i.id === item.id);
-  
+
   const genericName = `Item ${cart.length + 1}`;
-  
+
   if (existingIndex >= 0) {
     cart[existingIndex].quantity += item.quantity;
   } else {
     cart.push({ ...item, genericName });
   }
-  
+
   saveCart(cart);
 };
 
