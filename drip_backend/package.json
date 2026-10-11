@@ -5,13 +5,17 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
+    "prisma:generate": "prisma generate",
     "start": "node dist/server.js",
+    "start:staging": "node dist/stagingServer.js",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "import:shopify": "ts-node src/scripts/import-shopify.ts",
     "build:collections": "ts-node src/scripts/build-collections.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run build && node tests/run-tests.cjs",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "npm run build && node tests/run-postgres-tests.cjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

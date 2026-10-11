@@ -1,5 +1,8 @@
+import {productReadSelect,toProductDto,productSearch,textQuery,validateTextQueryKeys,CatalogueInputError} from "../services/productRead";
 import { Request, Response } from "express";
 import prisma from "../prisma";
+import {stockValue,updateVariantStock} from "../services/adminInventory";
+import {ReservationError} from "../services/reservations";
 
 /* =========================
    Helpers
@@ -38,190 +41,24 @@ function arrNumbers(v: any): number[] {
    Shop DTO
 ========================= */
 
-function toProductDto(p: any, collectionHandleOverride?: string) {
-  const variants = p.variants ?? [];
-  const firstVariant = variants[0];
-
-  const price =
-    firstVariant && firstVariant.price != null ? Number(firstVariant.price) : 0;
-
-  const compareAtPrice =
-    firstVariant && firstVariant.compareAtPrice != null
-      ? Number(firstVariant.compareAtPrice)
-      : null;
-
-  const stock =
-    variants.length > 0
-      ? variants.reduce((sum: number, v: any) => {
-          const q =
-            typeof v.inventoryQuantity === "number"
-              ? v.inventoryQuantity
-              : Number(v.inventoryQuantity);
-          return sum + (Number.isFinite(q) ? q : 0);
-        }, 0)
-      : 0; // ✅ better than 999 for shop
-
-  const collectionHandle =
-    collectionHandleOverride ?? p.collections?.[0]?.collection?.handle ?? "";
-
-  const sizes: string[] = Array.from(
-    new Set(
-      variants
-        .map((v: any) => v.option1 as string | null | undefined)
-        .filter(Boolean),
-    ),
-  ) as string[];
-
-  const colors: string[] = Array.from(
-    new Set(
-      variants
-        .map((v: any) => v.option2 as string | null | undefined)
-        .filter(Boolean),
-    ),
-  ) as string[];
-
-  return {
-    id: p.id,
-    handle: p.handle,
-    title: p.title,
-
-    mainImage: p.images?.[0]?.src ?? "",
-    images: (p.images ?? []).map((img: any) => img.src),
-
-    price,
-    compareAtPrice,
-    isNew: false,
-    isOnSale: compareAtPrice != null && compareAtPrice > price,
-
-    brand: p.vendor ?? "",
-    description: p.descriptionHtml ?? "",
-    collection: collectionHandle,
-
-    option1Name: p.option1Name ?? null,
-    option2Name: p.option2Name ?? null,
-    option3Name: p.option3Name ?? null,
-
-    colors,
-    sizes,
-    stock,
-  };
-}
-
 /* =========================
    SHOP: GET /api/products
 ========================= */
 
-export async function getProducts(req: Request, res: Response) {
-  try {
-    const { search } = req.query as { search?: string };
-
-    // const productsRaw = await prisma.product.findMany({
-    //   where: search
-    //     ? {
-    //         OR: [
-    //           { title: { contains: search, mode: "insensitive" } },
-    //           { vendor: { contains: search, mode: "insensitive" } },
-    //           { tags: { has: search } },
-    //         ],
-    //       }
-    //     : undefined,
-    //   include: {
-    //     images: true,
-    //     variants: true,
-    //     collections: { include: { collection: true } },
-    //   },
-    //   take: 50,
-    // });
-
-    const productsRaw = await prisma.product.findMany({
-      take: 24, // 50 is heavy for homepage
-      select: {
-        id: true,
-        handle: true,
-        title: true,
-        vendor: true,
-        descriptionHtml: true,
-        option1Name: true,
-        option2Name: true,
-        option3Name: true,
-
-        images: {
-          select: { src: true },
-          take: 1, // ONLY first image
-          orderBy: { position: "asc" },
-        },
-
-        variants: {
-          select: {
-            price: true,
-            compareAtPrice: true,
-            inventoryQuantity: true,
-            option1: true,
-            option2: true,
-          },
-        },
-
-        collections: {
-          select: {
-            collection: {
-              select: { handle: true },
-            },
-          },
-          take: 1,
-        },
-      },
-    });
-
-    res.json(productsRaw.map((p: any) => toProductDto(p)));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
+export async function getProducts(req:Request,res:Response) {
+ try {validateTextQueryKeys(req.query);const search=textQuery(req.query.search,"search"),vendor=textQuery(req.query.vendor,"vendor");
+ const products=await prisma.product.findMany({where:{...productSearch(search),...(vendor?{vendor}:{})},take:24,orderBy:{id:"asc"},select:productReadSelect(false)});
+ return res.json(products.map(p=>toProductDto(p)));
+ }catch(error){if(error instanceof CatalogueInputError)return res.status(400).json({error:error.message});return res.status(500).json({error:"Erreur serveur"});}
 }
-
-export async function getProductById(req: Request, res: Response) {
-  try {
-    const id = Number(req.params.id);
-    if (isNaN(id)) return res.status(400).json({ error: "ID invalide" });
-
-    const p = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        images: true,
-        variants: true,
-        collections: { include: { collection: true } },
-      },
-    });
-
-    if (!p) return res.status(404).json({ error: "Produit non trouvé" });
-
-    res.json(toProductDto(p));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
+export async function getProductById(req:Request,res:Response) {
+ const id=Number(req.params.id);if(!Number.isInteger(id)||id<1||id>2147483647)return res.status(400).json({error:"ID invalide"});
+ try {const p=await prisma.product.findUnique({where:{id},select:productReadSelect(true)});if(!p)return res.status(404).json({error:"Produit non trouvé"});return res.json(toProductDto(p));}
+ catch{return res.status(500).json({error:"Erreur serveur"});}
 }
-
-export async function getProductByHandle(req: Request, res: Response) {
-  try {
-    const { handle } = req.params;
-
-    const p = await prisma.product.findUnique({
-      where: { handle },
-      include: {
-        images: true,
-        variants: true,
-        collections: { include: { collection: true } },
-      },
-    });
-
-    if (!p) return res.status(404).json({ error: "Produit non trouvé" });
-
-    res.json(toProductDto(p));
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Erreur serveur" });
-  }
+export async function getProductByHandle(req:Request,res:Response) {
+ try {const p=await prisma.product.findUnique({where:{handle:req.params.handle},select:productReadSelect(true)});if(!p)return res.status(404).json({error:"Produit non trouvé"});return res.json(toProductDto(p));}
+ catch{return res.status(500).json({error:"Erreur serveur"});}
 }
 
 /* =========================
@@ -243,8 +80,8 @@ export async function adminGetProducts(req: Request, res: Response) {
           }
         : undefined,
       include: {
-        images: true,
-        variants: true,
+        images: {orderBy:[{position:"asc"},{id:"asc"}]},
+        variants: {orderBy:{id:"asc"}},
         collections: { include: { collection: true } },
       },
       orderBy: { id: "asc" },
@@ -263,7 +100,8 @@ export async function adminGetProducts(req: Request, res: Response) {
 
     res.json(mapped);
   } catch (err) {
-    console.error(err);
+    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    console.error("API operation failed");
     res.status(500).json({ error: "Erreur serveur (admin products)" });
   }
 }
@@ -276,8 +114,8 @@ export async function adminGetProductById(req: Request, res: Response) {
     const p = await prisma.product.findUnique({
       where: { id },
       include: {
-        images: true,
-        variants: true,
+        images: {orderBy:[{position:"asc"},{id:"asc"}]},
+        variants: {orderBy:{id:"asc"}},
         collections: { include: { collection: true } },
       },
     });
@@ -297,7 +135,8 @@ export async function adminGetProductById(req: Request, res: Response) {
 
     res.json(product);
   } catch (err) {
-    console.error(err);
+    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    console.error("API operation failed");
     res.status(500).json({ error: "Erreur serveur (admin product)" });
   }
 }
@@ -324,7 +163,7 @@ export async function adminCreateProduct(req: Request, res: Response) {
     }
 
     const compareAtPrice = toNumber(body.compareAtPrice);
-    const inventoryQuantity = toInt(body.inventoryQuantity);
+    const inventoryQuantity = body.inventoryQuantity===undefined?0:stockValue(body.inventoryQuantity);
     const sku = isNonEmptyString(body.sku) ? body.sku.trim() : null;
 
     const images = arrStrings(body.images);
@@ -354,7 +193,7 @@ export async function adminCreateProduct(req: Request, res: Response) {
               title: "Default",
               price,
               compareAtPrice: compareAtPrice ?? null,
-              inventoryQuantity: inventoryQuantity ?? 999,
+              inventoryQuantity: inventoryQuantity,
               sku,
               option1: body.option1 ?? null,
               option2: body.option2 ?? null,
@@ -381,15 +220,16 @@ export async function adminCreateProduct(req: Request, res: Response) {
           : undefined,
       },
       include: {
-        images: true,
-        variants: true,
+        images: {orderBy:[{position:"asc"},{id:"asc"}]},
+        variants: {orderBy:{id:"asc"}},
         collections: { include: { collection: true } },
       },
     });
 
     return res.status(201).json(created);
   } catch (err: any) {
-    console.error(err);
+    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (create product)" });
   }
 }
@@ -440,15 +280,16 @@ export async function adminUpdateProduct(req: Request, res: Response) {
         option3Name: body.option3Name ?? undefined,
       },
       include: {
-        images: true,
+        images: {orderBy:[{position:"asc"},{id:"asc"}]},
         collections: { include: { collection: true } },
-        variants: true,
+        variants: {orderBy:{id:"asc"}},
       },
     });
 
     return res.json(updated);
   } catch (err) {
-    console.error(err);
+    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (update product)" });
   }
 }
@@ -463,52 +304,12 @@ export async function adminUpdateDefaultVariant(req: Request, res: Response) {
     const productId = Number(req.params.id);
     if (isNaN(productId)) return res.status(400).json({ error: "Invalid id" });
 
-    const body = req.body as any;
-
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: { variants: true },
-    });
-    if (!product) return res.status(404).json({ error: "Product not found" });
-
-    const first = product.variants[0];
-
-    const price = toNumber(body.price);
-    const compareAtPrice =
-      body.compareAtPrice === null ? null : toNumber(body.compareAtPrice);
-    const inventoryQuantity =
-      body.inventoryQuantity === null ? null : toInt(body.inventoryQuantity);
-    const sku = isNonEmptyString(body.sku) ? body.sku.trim() : undefined;
-
-    // if they send price, validate it
-    if (body.price != null && (price == null || price <= 0)) {
-      return res.status(400).json({ error: "price must be a number > 0" });
-    }
-
-    const data = {
-      price: body.price != null ? price! : undefined,
-      compareAtPrice: body.compareAtPrice != null ? compareAtPrice : undefined,
-      inventoryQuantity:
-        body.inventoryQuantity != null ? (inventoryQuantity ?? 0) : undefined,
-      sku,
-    };
-
-    const v = first
-      ? await prisma.variant.update({ where: { id: first.id }, data })
-      : await prisma.variant.create({
-          data: {
-            title: "Default",
-            productId,
-            price: price ?? 0,
-            compareAtPrice: compareAtPrice ?? null,
-            inventoryQuantity: inventoryQuantity ?? 999,
-            sku: isNonEmptyString(body.sku) ? body.sku.trim() : null,
-          },
-        });
+    const v=await updateVariantStock(productId,req.body??{});
 
     return res.json(v);
   } catch (err) {
-    console.error(err);
+    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (update variant)" });
   }
 }
@@ -522,12 +323,18 @@ export async function adminDeleteProduct(req: Request, res: Response) {
     const id = Number(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
-    await prisma.productCollection.deleteMany({ where: { productId: id } });
-    await prisma.product.delete({ where: { id } });
+    await prisma.$transaction(async tx=>{
+      await tx.$queryRawUnsafe('SELECT "id" FROM "Product" WHERE "id"=$1 FOR UPDATE',id);
+      if(await tx.stockReservationItem.count({where:{variant:{productId:id}}}))
+        throw new ReservationError(409,"PRODUCT_HAS_RESERVATION_HISTORY");
+      await tx.productCollection.deleteMany({where:{productId:id}});
+      await tx.product.delete({where:{id}});
+    });
 
     return res.status(204).send();
   } catch (err) {
-    console.error(err);
+    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (delete product)" });
   }
 }
@@ -560,7 +367,8 @@ export async function adminSetProductCollections(req: Request, res: Response) {
 
     return res.status(200).json({ ok: true });
   } catch (err) {
-    console.error(err);
+    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    console.error("API operation failed");
     return res
       .status(500)
       .json({ error: "Erreur serveur (set product collections)" });

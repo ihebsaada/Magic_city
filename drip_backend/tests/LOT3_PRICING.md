@@ -1,0 +1,9 @@
+# Lot 3: validation and pricing
+Creation endpoints share runtime validation and server-side variant pricing. Limits: 100 lines, 99 units per variant, 1000 units overall, positive PostgreSQL Int product IDs. Customer name/email and optional shipping strings are bounded and typed.
+Missing selections are accepted only when they identify exactly one variant. Unrepresented third options and ambiguous/missing variants are rejected.
+Amounts use Decimal with ROUND_HALF_UP to two decimals for unit prices and the total discount; the applied discount is capped at the subtotal. Invalid/inactive/expired/exhausted codes retain the existing ignored-discount behavior and preview reasons. Preview is advisory and trusts only its provided subtotal; final orders use database prices.
+No stock reservation, atomic discount usage, idempotency or payment transitions are implemented in this lot.
+Shipping 9.90 EUR below 99.90 EUR pre-discount is prepared as proposedShipping(), tested, and deliberately NOT included in persisted totals. No feature flag or environment variable activates it.
+Consequences checked in production sources: Store already displays shipping; CheckoutLanding displays stored order.total/order.currency; /pay uses stored total times 100; Admin displays stored totals; Checkout confirmation has a preexisting cents/USD assumption. Activation requires an authoritative quote and client amount reconciliation, correct confirmation units/currency, and persisted shipping breakdown/version for new orders. Existing preview total must remain discounted merchandise, not include shipping. Old orders must not be recalculated.
+No schema migration is needed now. A later additive shipping breakdown/pricing-version migration should preserve legacy rows and requires separate authorization.
+Tests use synthetic Prisma/Stripe only. Zero/sub-0.50 totals retain the existing /pay rejection; a free-order flow needs a separate business decision.

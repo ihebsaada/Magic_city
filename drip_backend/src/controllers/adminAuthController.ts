@@ -29,7 +29,7 @@ export async function adminLogin(req: Request, res: Response) {
 
     return res.json({ token, user: { id: user.id, email: user.email } });
   } catch (err) {
-    console.error(err);
+    console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (adminLogin)" });
   }
 }
