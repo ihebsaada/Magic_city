@@ -2,7 +2,7 @@ import React from "react";
 
 const MESSAGES = [
   "20% di sconto per ordini oltre 390€",
-  "Spedizione gratuita per ordini a partire da 99,90€",
+  "Spedizione gratuita per ordini a partire da 200,00€",
 ];
 
 export const ScrollingPromoBar: React.FC = () => {

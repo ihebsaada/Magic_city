@@ -53,7 +53,7 @@ export const HelpCenterSection = () => {
                 In quanto tempo riceverò il mio ordine?
               </AccordionTrigger>
               <AccordionContent className="pb-4 text-sm text-muted-foreground md:text-[15px]">
-                Le spedizioni vengono consegnate in 5–7 giorni lavorativi.
+                Consegna stimata in 7–10 giorni.
                 Riceverai un’email con il codice di tracciamento non appena il
                 pacco sarà affidato al corriere.
               </AccordionContent>
