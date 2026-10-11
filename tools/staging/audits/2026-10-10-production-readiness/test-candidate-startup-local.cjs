@@ -1,0 +1,38 @@
+// Actual compiled candidate entry; existing encrypted local copy, read-only HTTP probes.
+const cp=require('child_process'),fs=require('fs'),net=require('net'),crypto=require('crypto'),path=require('path');
+const backend='C:/Users/hp/Desktop/work/magic city/Magic_city_backend_security/drip_backend';
+const docker='C:/Users/hp/AppData/Local/Programs/DockerDesktop/resources/bin/docker.exe',host=['--host','npipe:////./pipe/dockerDesktopLinuxEngine'],container='magiccity-encrypted-restore-20261011';
+const out=path.join(__dirname,'release-review','candidate-startup-'+Date.now());fs.mkdirSync(out,{recursive:true});
+const role='magiccity_local_migrator',password=crypto.randomBytes(32).toString('hex');
+let mounted=false,postgres=false,child,proxy;const sockets=new Set(),bridges=new Set();const results={};
+function d(args,input){const r=cp.spawnSync(docker,[...host,...args],{input,encoding:'utf8',timeout:60000,maxBuffer:100000});if(r.status!==0)throw Error('LOCAL_COMMAND_FAILED:'+args[0]);return r.stdout;}
+function exec(args,input){return d(['exec',...(input!==undefined?['-i']:[]),container,...args],input);}
+function sql(q){return exec(['psql','-h','/var/lib/postgresql/data','-X','-U','postgres','-d','magiccity_restore','-At','-v','ON_ERROR_STOP=1','-f','-'],q);}
+async function port(){const s=net.createServer();await new Promise(r=>s.listen(0,'127.0.0.1',r));const p=s.address().port;await new Promise(r=>s.close(r));return p;}
+(async()=>{try{
+d(['start',container]);exec(['mount','-o','loop','/vault/pg-storage.ext4','/var/lib/postgresql']);mounted=true;
+exec(['gosu','postgres','pg_ctl','-D','/var/lib/postgresql/data','-l','/var/lib/postgresql/candidate-startup.log','-o','-c listen_addresses=127.0.0.1 -c unix_socket_directories=/var/lib/postgresql/data -c default_transaction_read_only=on -c hba_file=/var/lib/postgresql/migration-only.hba','-w','start']);postgres=true;
+if(!sql("BEGIN READ ONLY; SELECT current_database()||'|'||current_setting('server_version_num'); ROLLBACK;").includes('magiccity_restore|180006'))throw Error('IDENTITY_GUARD');
+sql(`BEGIN; SET TRANSACTION READ WRITE; SET LOCAL password_encryption='scram-sha-256'; ALTER ROLE ${role} LOGIN PASSWORD '${password}'; COMMIT;`);
+const id=sql('BEGIN READ ONLY; SELECT id FROM public."Order" o WHERE NOT EXISTS(SELECT 1 FROM public."SecureOrderPolicy" p WHERE p."orderId"=o.id) ORDER BY "orderNumber" LIMIT 1; ROLLBACK;').split(/\r?\n/).filter(x=>x&&x!=='BEGIN'&&x!=='ROLLBACK')[0];if(!id)throw Error('HISTORICAL_FIXTURE_MISSING');
+proxy=net.createServer(s=>{sockets.add(s);const c=cp.spawn(docker,[...host,'exec','-i',container,'bash','-c','exec 3<>/dev/tcp/127.0.0.1/5432; cat <&3 & reader=$!; cat >&3; kill "$reader" 2>/dev/null; wait'],{stdio:['pipe','pipe','ignore']});bridges.add(c);s.pipe(c.stdin);c.stdout.pipe(s);s.on('error',()=>c.kill());c.stdin.on('error',()=>s.destroy());s.on('close',()=>{sockets.delete(s);c.kill();});c.on('close',()=>{bridges.delete(c);s.destroy();});});await new Promise(r=>proxy.listen(0,'127.0.0.1',r));
+const preload=path.join(out,'preload.cjs');
+fs.writeFileSync(preload,`const fs=require('fs'),Module=require('module');const {PrismaClient}=require(${JSON.stringify(backend+'/node_modules/@prisma/client')});const db=new PrismaClient({datasources:{db:{url:process.env.TEST_LOCAL_DATABASE_URL}}});db.user.findUnique=async()=>({id:'synthetic-admin',email:'admin@example.invalid'});require.cache[require.resolve(${JSON.stringify(backend+'/dist/prisma.js')})]={exports:{__esModule:true,default:db}};const load=Module._load;let calls=0;fs.writeFileSync(process.env.TEST_STRIPE_COUNT,'0');Module._load=function(n){const v=load.apply(this,arguments);if(n!=='stripe')return v;return class extends v{constructor(...a){super(...a);for(const m of ['create','retrieve','expire'])this.checkout.sessions[m]=async()=>{calls++;fs.writeFileSync(process.env.TEST_STRIPE_COUNT,String(calls));throw Error('Remote Stripe forbidden in test');};}};};require('https').request=()=>{throw Error('External HTTPS forbidden in test');};`);
+const p=await port(),env={};for(const k of ['PATH','Path','SystemRoot'])if(process.env[k])env[k]=process.env[k];
+Object.assign(env,{TEMP:'M:/scratch',TMP:'M:/scratch',PORT:String(p),DEPLOYMENT_ENV:'production',NODE_ENV:'production',DATABASE_URL:'postgresql://synthetic:synthetic@127.0.0.1:1/magiccitydb_3334?sslmode=require',PRODUCTION_DATABASE_HOST:'127.0.0.1',TEST_LOCAL_DATABASE_URL:`postgresql://${role}:${password}@127.0.0.1:${proxy.address().port}/magiccity_restore?sslmode=disable`,TEST_STRIPE_COUNT:path.join(out,'stripe-count.log'),JWT_SECRET:'synthetic-jwt-'.repeat(4),NAVIGATION_HANDOFF_SECRET:'synthetic-ticket-'.repeat(4),STRIPE_SECRET_KEY:'sk_live_synthetic_never_used',STRIPE_WEBHOOK_SECRET:'whsec_synthetic_only',STRIPE_CURRENCY:'eur',PRODUCTION_STORE_ORIGIN:'https://store.prod.invalid',PRODUCTION_CHECKOUT_ORIGIN:'https://checkout.prod.invalid',PRODUCTION_API_ORIGIN:'https://api.prod.invalid',CHECKOUT_APP_URL:'https://checkout.prod.invalid',STRIPE_SUCCESS_URL:'https://checkout.prod.invalid/order-confirmation?orderId={ORDER_ID}&session_id={CHECKOUT_SESSION_ID}',STRIPE_CANCEL_URL:'https://checkout.prod.invalid/checkout-landing?orderId={ORDER_ID}',NAVIGATION_HANDOFF_ENABLED:'true'});
+child=cp.spawn(process.execPath,['--require',preload,backend+'/dist/server.js'],{cwd:out,env,stdio:['ignore','ignore','ignore']});
+const base='http://127.0.0.1:'+p;let ready=false;for(let i=0;i<80;i++){if(child.exitCode!==null)break;try{if((await fetch(base+'/healthz')).status===200){ready=true;break;}}catch{}await new Promise(r=>setTimeout(r,100));}if(!ready)throw Error('ACTUAL_COMPILED_ENTRY_NOT_READY');results.STARTUP_TEST='PASS_ACTUAL_ENTRY_REAL_LOCAL_POSTGRES';
+const assert=require('assert/strict');assert.equal((await fetch(base+'/api/products')).status,200);assert.equal((await fetch(base+'/api/orders/'+encodeURIComponent(id)+'/min')).status,401);
+const jwt=require(backend+'/node_modules/jsonwebtoken'),token=jwt.sign({email:'admin@example.invalid'},env.JWT_SECRET,{subject:'synthetic-admin',expiresIn:'5m'}),headers={Authorization:'Bearer '+token};
+assert.equal((await fetch(base+'/api/admin/orders/'+encodeURIComponent(id),{headers})).status,200);
+assert.equal((await fetch(base+'/api/admin/orders/'+encodeURIComponent(id),{method:'PATCH',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify({status:'CANCELLED'})})).status,409);
+assert.equal((await fetch(base+'/api/pay',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({orderId:id})})).status,401);
+assert.equal((await fetch(base+'/healthz',{headers:{Origin:'https://untrusted.invalid'}})).status,403);
+assert.equal(fs.readFileSync(env.TEST_STRIPE_COUNT,'utf8'),'0');results.LEGACY_ORDERS='PASS_ADMIN_READ_GUEST_AND_MUTATION_DENIED';results.STRIPE_CALLS=0;results.CATALOGUE_READ='PASS';
+}catch(e){results.failure=e.message;process.exitCode=1;}finally{
+if(child&&child.exitCode===null){child.kill();await new Promise(r=>child.once('exit',r));}for(const s of sockets)s.destroy();for(const b of bridges)b.kill();if(proxy)proxy.close();
+if(postgres){try{sql(`BEGIN; SET TRANSACTION READ WRITE; ALTER ROLE ${role} NOLOGIN PASSWORD NULL; COMMIT;`);exec(['gosu','postgres','pg_ctl','-D','/var/lib/postgresql/data','-m','fast','-w','stop']);results.POSTGRES_STOP='PASS';}catch{results.POSTGRES_STOP='FAIL';process.exitCode=1;}}
+if(mounted){try{exec(['umount','/var/lib/postgresql']);results.UNMOUNT='PASS';}catch{results.UNMOUNT='FAIL';process.exitCode=1;}}
+try{d(['stop',container]);results.CONTAINER_STOP='PASS';}catch{results.CONTAINER_STOP='FAIL';process.exitCode=1;}
+fs.writeFileSync(path.join(out,'RESULTS.json'),JSON.stringify(results,null,2));console.log(JSON.stringify(results));
+}})();

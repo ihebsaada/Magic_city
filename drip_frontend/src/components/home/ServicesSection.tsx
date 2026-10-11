@@ -3,8 +3,8 @@ import { Truck, RefreshCcw, Headphones, CreditCard } from "lucide-react";
 const services = [
   {
     icon: Truck,
-    title: "Spedizione Rapida",
-    description: "Consegna in 24-48h in tutta Italia",
+    title: "Consegna Stimata",
+    description: "Consegna stimata in 7–10 giorni in tutta Italia",
   },
   {
     icon: RefreshCcw,

@@ -1,0 +1,8 @@
+const fs=require('fs'),cp=require('child_process'),path=require('path');
+const base=process.cwd(),audit=path.join(base,'tools/staging/audits/2026-10-10-production-readiness'),out=path.join(audit,'release-review');fs.mkdirSync(out,{recursive:true});
+const env={};for(const k of ['PATH','Path','SystemRoot','TEMP','TMP','USERPROFILE','APPDATA','LOCALAPPDATA'])if(process.env[k])env[k]=process.env[k];env.DATABASE_URL='postgresql://synthetic:synthetic@127.0.0.1:1/synthetic';
+const roots={store:path.join(base,'drip_frontend'),checkout:path.resolve(base,'../Magic_city_checkout_security/seamless_checkout_flow'),backend:path.resolve(base,'../Magic_city_backend_security/drip_backend')};
+const results=[];function run(cwd,args,label){const r=cp.spawnSync(process.execPath,args,{cwd,env,encoding:'utf8',timeout:180000,maxBuffer:16e6});fs.writeFileSync(path.join(out,label+'.log'),(r.stdout||'')+(r.stderr||''));results.push({label,exit:r.status});console.log(label+'='+r.status);}
+for(const [app,root]of Object.entries(roots)){if(app==='backend')run(root,['node_modules/typescript/bin/tsc'],'backend-build');run(root,[app==='backend'?'tests/run-tests.cjs':'scripts/run-tests.mjs'],app+'-tests');for(const config of app==='backend'?['tsconfig.json']:['tsconfig.app.json','tsconfig.node.json','tsconfig.tests.json'])run(root,['node_modules/typescript/bin/tsc','--noEmit','-p',config],app+'-'+config);}
+run(base,['tools/staging/common-access-tests.cjs'],'cross-tests');run(roots.backend,['node_modules/prisma/build/index.js','validate'],'prisma-validate');
+fs.writeFileSync(path.join(out,'RESULTS.json'),JSON.stringify(results,null,2));if(results.some(r=>r.exit!==0))process.exitCode=1;
