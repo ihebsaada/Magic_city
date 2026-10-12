@@ -1,9 +1,15 @@
-import navigationRoutes,{navigationCors} from './routes/navigationHandoffRoutes';
-import handoffRoutes, {handoffCors, DEFAULT_HANDOFF_ORIGINS} from "./routes/orderHandoffRoutes";
-import {RecoveryDelivery} from "./services/guestOrderAccess";
+import navigationRoutes, {
+  navigationCors,
+} from "./routes/navigationHandoffRoutes";
+import handoffRoutes, {
+  handoffCors,
+  DEFAULT_HANDOFF_ORIGINS,
+} from "./routes/orderHandoffRoutes";
+import { RecoveryDelivery } from "./services/guestOrderAccess";
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
+import { ReservationError } from "./services/reservations";
 
 import collectionRoutes from "./routes/collectionRoutes";
 import productRoutes from "./routes/productRoutes";
@@ -13,36 +19,106 @@ import orderRoutes from "./routes/orderRoutes";
 import adminAuthRoutes from "./routes/adminAuthRoutes";
 import adminDiscountRouter from "./routes/discountRoutes";
 
-export function createApp({ logging = true, orderAccessRequired=false, orderRecoveryDelivery, handoffOrigins=DEFAULT_HANDOFF_ORIGINS, allowedOrigins, staging=false, production=false, navigationHandoffEnabled=staging, shippingEnabled=staging || production }: { logging?: boolean; orderAccessRequired?:boolean; orderRecoveryDelivery?:RecoveryDelivery; handoffOrigins?:typeof DEFAULT_HANDOFF_ORIGINS; allowedOrigins?:string[]; staging?:boolean; production?:boolean; navigationHandoffEnabled?:boolean; shippingEnabled?:boolean } = {}) {
+export function createApp({
+  logging = true,
+  orderAccessRequired = false,
+  orderRecoveryDelivery,
+  handoffOrigins = DEFAULT_HANDOFF_ORIGINS,
+  allowedOrigins,
+  staging = false,
+  production = false,
+  navigationHandoffEnabled = staging,
+  shippingEnabled = staging || production,
+}: {
+  logging?: boolean;
+  orderAccessRequired?: boolean;
+  orderRecoveryDelivery?: RecoveryDelivery;
+  handoffOrigins?: typeof DEFAULT_HANDOFF_ORIGINS;
+  allowedOrigins?: string[];
+  staging?: boolean;
+  production?: boolean;
+  navigationHandoffEnabled?: boolean;
+  shippingEnabled?: boolean;
+} = {}) {
   const app = express();
-  app.locals.orderAccessRequired=production || staging || orderAccessRequired;
-  app.locals.production=production;
-  app.locals.navigationHandoffEnabled=navigationHandoffEnabled;
-  app.locals.shippingEnabled=production || shippingEnabled;
-  if(production && staging)throw new Error("DEPLOYMENT_MODE_CONFLICT");
-  if(production && (!allowedOrigins?.length || !allowedOrigins.includes(handoffOrigins.store) || !allowedOrigins.includes(handoffOrigins.checkout)))throw new Error("PRODUCTION_ORIGINS_REQUIRED");
-  app.locals.staging=staging;
-  app.locals.handoffOrigins=handoffOrigins;
-  if(allowedOrigins)app.use((req,res,next)=>{res.set({'Cache-Control':'no-store','Referrer-Policy':'no-referrer'});const origin=req.get('Origin');if(origin && !allowedOrigins.includes(origin))return res.status(403).json({error:'ORIGIN_DENIED'});next();});
-  app.get('/healthz',(_req,res)=>res.json({ok:true}));
-  app.locals.orderRecoveryDelivery=orderRecoveryDelivery;
-  if (logging) app.use(morgan(":method :status :response-time ms", {
-    skip: (req) => /^\/api\/(?:orders|navigation-handoffs|order-handoffs|order-access|admin|checkout|pay|stripe)(?:\/|$)/i.test(req.path),
-  }));
+  app.locals.orderAccessRequired = production || staging || orderAccessRequired;
+  app.locals.production = production;
+  app.locals.navigationHandoffEnabled = navigationHandoffEnabled;
+  app.locals.shippingEnabled = production || shippingEnabled;
+  if (production && staging) throw new Error("DEPLOYMENT_MODE_CONFLICT");
+  if (
+    production &&
+    (!allowedOrigins?.length ||
+      !allowedOrigins.includes(handoffOrigins.store) ||
+      !allowedOrigins.includes(handoffOrigins.checkout))
+  )
+    throw new Error("PRODUCTION_ORIGINS_REQUIRED");
+  app.locals.staging = staging;
+  app.locals.handoffOrigins = handoffOrigins;
+  if (allowedOrigins)
+    app.use((req, res, next) => {
+      res.set({
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+      });
+      const origin = req.get("Origin");
+      if (origin && !allowedOrigins.includes(origin))
+        return res.status(403).json({ error: "ORIGIN_DENIED" });
+      next();
+    });
+  app.get("/healthz", (_req, res) => res.json({ ok: true }));
+  app.locals.orderRecoveryDelivery = orderRecoveryDelivery;
+  if (logging)
+    app.use(
+      morgan(":method :status :response-time ms", {
+        skip: (req) =>
+          /^\/api\/(?:orders|navigation-handoffs|order-handoffs|order-access|admin|checkout|pay|stripe)(?:\/|$)/i.test(
+            req.path,
+          ),
+      }),
+    );
   app.use("/api", (req, res, next) => {
-    if (/^\/(?:orders|navigation-handoffs|order-handoffs|order-access|admin|checkout|pay|stripe)(?:\/|$)/i.test(req.path)) {
+    if (
+      /^\/(?:orders|navigation-handoffs|order-handoffs|order-access|admin|checkout|pay|stripe)(?:\/|$)/i.test(
+        req.path,
+      )
+    ) {
       res.setHeader("Cache-Control", "no-store");
       res.setHeader("Pragma", "no-cache");
-      res.setHeader("Referrer-Policy","no-referrer");
-      if(Object.keys(req.query).some(k=>/^(?:token|accessToken|access_token|order-access-token|recoveryToken|recovery_token)$/i.test(k)))
-        return res.status(400).json({error:"ORDER_ACCESS_HEADER_REQUIRED"});
+      res.setHeader("Referrer-Policy", "no-referrer");
+      if (
+        Object.keys(req.query).some((k) =>
+          /^(?:token|accessToken|access_token|order-access-token|recoveryToken|recovery_token)$/i.test(
+            k,
+          ),
+        )
+      )
+        return res.status(400).json({ error: "ORDER_ACCESS_HEADER_REQUIRED" });
     }
     next();
   });
 
   app.use(navigationCors(handoffOrigins));
   app.use(handoffCors(handoffOrigins));
-  app.use((req,res,next)=>req.path.toLowerCase().includes("/navigation-handoffs") || req.path.toLowerCase().includes("/order-handoffs") || /\/orders\/[^/]+\/handoffs/i.test(req.path)?next():cors(allowedOrigins?{origin:allowedOrigins,allowedHeaders:["Content-Type","Authorization","Order-Access-Token","Idempotency-Key"]}:undefined)(req,res,next));
+  app.use((req, res, next) =>
+    req.path.toLowerCase().includes("/navigation-handoffs") ||
+    req.path.toLowerCase().includes("/order-handoffs") ||
+    /\/orders\/[^/]+\/handoffs/i.test(req.path)
+      ? next()
+      : cors(
+          allowedOrigins
+            ? {
+                origin: allowedOrigins,
+                allowedHeaders: [
+                  "Content-Type",
+                  "Authorization",
+                  "Order-Access-Token",
+                  "Idempotency-Key",
+                ],
+              }
+            : undefined,
+        )(req, res, next),
+  );
 
   app.post(
     "/api/stripe/webhook",
@@ -66,11 +142,31 @@ export function createApp({ logging = true, orderAccessRequired=false, orderReco
 
   app.get("/api/collections/:handle/brands", getCollectionBrands);
 
-
   // Express JSON parser errors otherwise include body excerpts in the default error page.
-  app.use((error:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{
-    const status=(error as {status?:number})?.status;
-    res.status(status===400?400:500).json({error:status===400?"INVALID_REQUEST":"SERVER_ERROR"});
-  });
+  app.use(
+    (
+      error: unknown,
+      _req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction,
+    ) => {
+      if (_req.path.startsWith("/api/admin/")) {
+        const code = (error as { code?: string })?.code;
+        const map: Record<string, [number, string]> = {
+          P2002: [409, "DUPLICATE_VALUE"],
+          P2003: [409, "RELATED_RECORD_CONFLICT"],
+          P2025: [404, "RECORD_NOT_FOUND"],
+        };
+        if (code && map[code])
+          return res.status(map[code][0]).json({ error: map[code][1] });
+        if (error instanceof ReservationError)
+          return res.status(error.status).json({ error: error.code });
+      }
+      const status = (error as { status?: number })?.status;
+      res
+        .status(status === 400 ? 400 : 500)
+        .json({ error: status === 400 ? "INVALID_REQUEST" : "SERVER_ERROR" });
+    },
+  );
   return app;
 }

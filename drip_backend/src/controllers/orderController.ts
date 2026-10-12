@@ -1,47 +1,96 @@
-import {requireSecureOrder,SecureOrderPolicyError} from "../services/secureOrderPolicy";
-import {GuestAccessError} from "../services/guestOrderAccess";
+import { adminOrderCapabilities } from "../services/adminOrderCapabilities";
+import {
+  requireSecureOrder,
+  SecureOrderPolicyError,
+} from "../services/secureOrderPolicy";
+import { GuestAccessError } from "../services/guestOrderAccess";
 // src/controllers/orderController.ts
 import { Request, Response } from "express";
 import prisma from "../prisma";
-import {createIdempotentOrder,IdempotencyError} from "../services/orderIdempotency";
-import {reserveLegacyOrder} from "../services/legacyReservation";
-import {ReservationError} from "../services/reservations";
-import {reconcileReservation} from "../services/reservationReconciliation";
-import {OrderInputError} from "../services/orderPricing";
-import {startPayment,reconcilePayment,PaymentError,updateOrderState} from "../services/paymentService";
+import {
+  createIdempotentOrder,
+  IdempotencyError,
+} from "../services/orderIdempotency";
+import { reserveLegacyOrder } from "../services/legacyReservation";
+import { ReservationError } from "../services/reservations";
+import { reconcileReservation } from "../services/reservationReconciliation";
+import { OrderInputError } from "../services/orderPricing";
+import {
+  startPayment,
+  reconcilePayment,
+  PaymentError,
+  updateOrderState,
+} from "../services/paymentService";
 
 // ======================================================
 
 // ✅ STRIPE CHECKOUT: second shop sends only {orderId}
 
-function paymentFailure(res: Response,error: unknown) {
- const status=(error instanceof SecureOrderPolicyError || error instanceof PaymentError || error instanceof ReservationError)?error.status:503;
- if(status===503) res.setHeader("Retry-After","2");
- return res.status(status).json({error:(error instanceof SecureOrderPolicyError || error instanceof PaymentError || error instanceof ReservationError)?error.code:"PAYMENT_RETRY"});
+function paymentFailure(res: Response, error: unknown) {
+  const status =
+    error instanceof SecureOrderPolicyError ||
+    error instanceof PaymentError ||
+    error instanceof ReservationError
+      ? error.status
+      : 503;
+  if (status === 503) res.setHeader("Retry-After", "2");
+  return res
+    .status(status)
+    .json({
+      error:
+        error instanceof SecureOrderPolicyError ||
+        error instanceof PaymentError ||
+        error instanceof ReservationError
+          ? error.code
+          : "PAYMENT_RETRY",
+    });
 }
-export async function createStripeCheckout(req:Request,res:Response) {
- try {return res.json(await startPayment(req.body?.orderId));}
- catch(error) {return paymentFailure(res,error);}
+export async function createStripeCheckout(req: Request, res: Response) {
+  try {
+    return res.json(await startPayment(req.body?.orderId));
+  } catch (error) {
+    return paymentFailure(res, error);
+  }
 }
-export async function confirmStripePayment(req:Request,res:Response) {
- if(typeof req.query.session_id!=="string" || !req.query.session_id || req.query.session_id.length>255)
-   return res.status(400).json({error:"Missing session_id"});
- try {return res.json(await reconcilePayment(req.query.session_id));}
- catch(error) {return paymentFailure(res,error);}
+export async function confirmStripePayment(req: Request, res: Response) {
+  if (
+    typeof req.query.session_id !== "string" ||
+    !req.query.session_id ||
+    req.query.session_id.length > 255
+  )
+    return res.status(400).json({ error: "Missing session_id" });
+  try {
+    return res.json(await reconcilePayment(req.query.session_id));
+  } catch (error) {
+    return paymentFailure(res, error);
+  }
 }
 export async function createCheckoutIntent(req: Request, res: Response) {
   try {
-    const result = await createIdempotentOrder(req.body, "intent", req.headers["idempotency-key"],req.headers["order-access-token"],req.app.locals.shippingEnabled===true,req.app.locals.production===true);
+    const result = await createIdempotentOrder(
+      req.body,
+      "intent",
+      req.headers["idempotency-key"],
+      req.headers["order-access-token"],
+      req.app.locals.shippingEnabled === true,
+      req.app.locals.production === true,
+    );
     res.setHeader("Idempotency-Replayed", String(result.replayed));
     return res.status(result.status).json(result.response);
   } catch (err) {
-    if (err instanceof SecureOrderPolicyError) return res.status(err.status).json({error:err.code});
-    if (err instanceof GuestAccessError) return res.status(err.status).json({error:err.code});
-    if (err instanceof ReservationError) return paymentFailure(res,err);
-    if (err instanceof IdempotencyError) return res.status(err.status).json({ error: err.code });
-    if (err instanceof OrderInputError) return res.status(400).json({ error: err.message });
+    if (err instanceof SecureOrderPolicyError)
+      return res.status(err.status).json({ error: err.code });
+    if (err instanceof GuestAccessError)
+      return res.status(err.status).json({ error: err.code });
+    if (err instanceof ReservationError) return paymentFailure(res, err);
+    if (err instanceof IdempotencyError)
+      return res.status(err.status).json({ error: err.code });
+    if (err instanceof OrderInputError)
+      return res.status(400).json({ error: err.message });
     console.error("Order operation failed");
-    return res.status(500).json({ error: "Erreur serveur (createCheckoutIntent)" });
+    return res
+      .status(500)
+      .json({ error: "Erreur serveur (createCheckoutIntent)" });
   }
 }
 
@@ -73,7 +122,8 @@ export async function getOrderMinimal(req: Request, res: Response) {
       createdAt: order.createdAt,
     });
   } catch (err) {
-    if(err instanceof SecureOrderPolicyError)return res.status(err.status).json({error:err.code});
+    if (err instanceof SecureOrderPolicyError)
+      return res.status(err.status).json({ error: err.code });
     console.error("Order operation failed");
     return res.status(500).json({ error: "Erreur serveur (getOrderMinimal)" });
   }
@@ -84,11 +134,12 @@ export async function adminGetOrders(req: Request, res: Response) {
   try {
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: "desc" },
-      include: { items: true },
+      include: { items: true, securePolicy: true },
     });
 
     const mapped = orders.map((o) => ({
       id: o.id,
+      ...adminOrderCapabilities(o),
       orderNumber: `#${o.orderNumber}`,
       customer: { name: o.customerName, email: o.customerEmail },
       total: o.total.toFixed(2),
@@ -114,13 +165,14 @@ export async function adminGetOrderById(req: Request, res: Response) {
 
     const o = await prisma.order.findUnique({
       where: { id },
-      include: { items: true },
+      include: { items: true, securePolicy: true },
     });
 
     if (!o) return res.status(404).json({ error: "Order not found" });
 
     return res.json({
       id: o.id,
+      ...adminOrderCapabilities(o),
       orderNumber: `#${o.orderNumber}`,
       customer: { name: o.customerName, email: o.customerEmail },
 
@@ -176,15 +228,26 @@ export async function adminGetOrderById(req: Request, res: Response) {
 // ✅ OPTIONAL: create order directly (if you still use /orders)
 export async function createOrder(req: Request, res: Response) {
   try {
-    const result = await createIdempotentOrder(req.body, "orders", req.headers["idempotency-key"],req.headers["order-access-token"],req.app.locals.shippingEnabled===true,req.app.locals.production===true);
+    const result = await createIdempotentOrder(
+      req.body,
+      "orders",
+      req.headers["idempotency-key"],
+      req.headers["order-access-token"],
+      req.app.locals.shippingEnabled === true,
+      req.app.locals.production === true,
+    );
     res.setHeader("Idempotency-Replayed", String(result.replayed));
     return res.status(result.status).json(result.response);
   } catch (err) {
-    if(err instanceof SecureOrderPolicyError)return res.status(err.status).json({error:err.code});
-    if (err instanceof GuestAccessError) return res.status(err.status).json({error:err.code});
-    if (err instanceof ReservationError) return paymentFailure(res,err);
-    if (err instanceof IdempotencyError) return res.status(err.status).json({ error: err.code });
-    if (err instanceof OrderInputError) return res.status(400).json({ error: err.message });
+    if (err instanceof SecureOrderPolicyError)
+      return res.status(err.status).json({ error: err.code });
+    if (err instanceof GuestAccessError)
+      return res.status(err.status).json({ error: err.code });
+    if (err instanceof ReservationError) return paymentFailure(res, err);
+    if (err instanceof IdempotencyError)
+      return res.status(err.status).json({ error: err.code });
+    if (err instanceof OrderInputError)
+      return res.status(400).json({ error: err.message });
     console.error("Order operation failed");
     return res.status(500).json({ error: "Erreur serveur (createOrder)" });
   }
@@ -202,23 +265,34 @@ export async function adminUpdateOrder(req: Request, res: Response) {
       return res.status(400).json({ error: "Nothing to update" });
     }
 
-    const updated = await updateOrderState(id,status,paymentStatus);
+    const updated = await updateOrderState(id, status, paymentStatus);
 
-    if(status==="CANCELLED")await reconcileReservation(id).catch(()=>{});
+    if (status === "CANCELLED") await reconcileReservation(id).catch(() => {});
     return res.json({ ok: true, id: updated.id });
   } catch (err) {
-    if (err instanceof SecureOrderPolicyError || err instanceof PaymentError || err instanceof ReservationError) return paymentFailure(res,err);
+    if (
+      err instanceof SecureOrderPolicyError ||
+      err instanceof PaymentError ||
+      err instanceof ReservationError
+    )
+      return paymentFailure(res, err);
     console.error("Order operation failed");
     return res.status(500).json({ error: "Erreur serveur (adminUpdateOrder)" });
   }
 }
 
-export async function adminReconcileReservation(req:Request,res:Response) {
- try {return res.json(await reconcileReservation(req.params.id));}
- catch(error){return paymentFailure(res,error);}
+export async function adminReconcileReservation(req: Request, res: Response) {
+  try {
+    return res.json(await reconcileReservation(req.params.id));
+  } catch (error) {
+    return paymentFailure(res, error);
+  }
 }
 
-export async function adminReserveLegacy(req:Request,res:Response) {
- try{return res.json(await reserveLegacyOrder(req.params.id));}
- catch(error){return paymentFailure(res,error);}
+export async function adminReserveLegacy(req: Request, res: Response) {
+  try {
+    return res.json(await reserveLegacyOrder(req.params.id));
+  } catch (error) {
+    return paymentFailure(res, error);
+  }
 }

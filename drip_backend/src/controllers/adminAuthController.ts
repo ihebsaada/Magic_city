@@ -9,7 +9,12 @@ const EXPIRES = process.env.JWT_EXPIRES_IN || "7d";
 export async function adminLogin(req: Request, res: Response) {
   try {
     const { email, password } = req.body as { email: string; password: string };
-    if (!email || !password)
+    if (
+      typeof email !== "string" ||
+      !email.trim() ||
+      typeof password !== "string" ||
+      !password
+    )
       return res.status(400).json({ error: "Missing data" });
     if (!JWT_SECRET)
       return res.status(500).json({ error: "JWT_SECRET missing" });

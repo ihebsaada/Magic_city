@@ -1,34 +1,104 @@
-import {productReadSelect,toProductDto,productSearch,textQuery,validateTextQueryKeys,CatalogueInputError} from "../services/productRead";
+import { adminId } from "../services/adminValidation";
+import { ReservationError } from "../services/reservations";
+import {
+  productReadSelect,
+  toProductDto,
+  productSearch,
+  textQuery,
+  validateTextQueryKeys,
+  CatalogueInputError,
+} from "../services/productRead";
 import { Request, Response } from "express";
 import prisma from "../prisma";
 
-export async function getCollectionProducts(req:Request,res:Response) {
- try {validateTextQueryKeys(req.query);const handle=req.params.handle,vendor=textQuery(req.query.vendor,"vendor"),search=textQuery(req.query.search,"search");
- const collection=await prisma.collection.findUnique({where:{handle},select:{id:true,handle:true,title:true}});
- if(!collection)return res.status(404).json({error:"Collection non trouvée"});
- const products=await prisma.product.findMany({where:{collections:{some:{collectionId:collection.id}},...(vendor?{vendor}:{}),...productSearch(search)},orderBy:{id:"asc"},select:productReadSelect(true,false)});
- return res.json({collection,products:products.map(p=>toProductDto(p,handle))});
- }catch(error){if(error instanceof CatalogueInputError)return res.status(400).json({error:error.message});return res.status(500).json({error:"Erreur serveur"});}
+export async function getCollectionProducts(req: Request, res: Response) {
+  try {
+    validateTextQueryKeys(req.query);
+    const handle = req.params.handle,
+      vendor = textQuery(req.query.vendor, "vendor"),
+      search = textQuery(req.query.search, "search");
+    const collection = await prisma.collection.findUnique({
+      where: { handle },
+      select: { id: true, handle: true, title: true },
+    });
+    if (!collection)
+      return res.status(404).json({ error: "Collection non trouvée" });
+    const products = await prisma.product.findMany({
+      where: {
+        collections: { some: { collectionId: collection.id } },
+        ...(vendor ? { vendor } : {}),
+        ...productSearch(search),
+      },
+      orderBy: { id: "asc" },
+      select: productReadSelect(true, false),
+    });
+    return res.json({
+      collection,
+      products: products.map((p) => toProductDto(p, handle)),
+    });
+  } catch (error) {
+    if (error instanceof CatalogueInputError)
+      return res.status(400).json({ error: error.message });
+    return res.status(500).json({ error: "Erreur serveur" });
+  }
 }
-export async function getCollectionBrands(req:Request,res:Response) {
- try {const groups=await prisma.product.groupBy({by:["vendor"],where:{collections:{some:{collection:{handle:req.params.handle}}},vendor:{not:null}},_count:{id:true},orderBy:{vendor:"asc"}});
- return res.json(groups.filter(p=>p.vendor).map(p=>({vendor:p.vendor,count:p._count.id})).sort((a,b)=>b.count-a.count));}
- catch{return res.status(500).json({error:"Error fetching collection brands"});}
+export async function getCollectionBrands(req: Request, res: Response) {
+  try {
+    const groups = await prisma.product.groupBy({
+      by: ["vendor"],
+      where: {
+        collections: { some: { collection: { handle: req.params.handle } } },
+        vendor: { not: null },
+      },
+      _count: { id: true },
+      orderBy: { vendor: "asc" },
+    });
+    return res.json(
+      groups
+        .filter((p) => p.vendor)
+        .map((p) => ({ vendor: p.vendor, count: p._count.id }))
+        .sort((a, b) => b.count - a.count),
+    );
+  } catch {
+    return res.status(500).json({ error: "Error fetching collection brands" });
+  }
 }
 
-
-
-export async function getCollections(_req:Request,res:Response){
- try{const rows=await prisma.collection.findMany({orderBy:{title:"asc"},select:{id:true,handle:true,title:true,_count:{select:{products:true}}}});
- return res.json(rows.map(c=>({id:c.id,handle:c.handle,title:c.title,productsCount:c._count.products})));}
- catch{return res.status(500).json({error:"Erreur serveur"});}
+export async function getCollections(_req: Request, res: Response) {
+  try {
+    const rows = await prisma.collection.findMany({
+      orderBy: { title: "asc" },
+      select: {
+        id: true,
+        handle: true,
+        title: true,
+        _count: { select: { products: true } },
+      },
+    });
+    return res.json(
+      rows.map((c) => ({
+        id: c.id,
+        handle: c.handle,
+        title: c.title,
+        productsCount: c._count.products,
+      })),
+    );
+  } catch {
+    return res.status(500).json({ error: "Erreur serveur" });
+  }
 }
 
 // ADMIN: GET /api/admin/collections
 export async function adminGetCollections(req: Request, res: Response) {
   try {
     const collections = await prisma.collection.findMany({
-      select: {id:true,handle:true,title:true,description:true,_count:{select:{products:true}}},
+      select: {
+        id: true,
+        handle: true,
+        title: true,
+        description: true,
+        _count: { select: { products: true } },
+      },
       orderBy: { id: "asc" },
     });
 
@@ -42,6 +112,9 @@ export async function adminGetCollections(req: Request, res: Response) {
 
     res.json(mapped);
   } catch (err) {
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     res.status(500).json({ error: "Erreur serveur (admin collections)" });
   }
@@ -62,8 +135,8 @@ export async function adminGetCollectionWithProducts(
           include: {
             product: {
               include: {
-                images: {orderBy:[{position:"asc"},{id:"asc"}]},
-                variants: {orderBy:{id:"asc"}},
+                images: { orderBy: [{ position: "asc" }, { id: "asc" }] },
+                variants: { orderBy: { id: "asc" } },
                 collections: {
                   include: { collection: true },
                 },
@@ -103,6 +176,9 @@ export async function adminGetCollectionWithProducts(
 
     res.json(result);
   } catch (err) {
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     res.status(500).json({ error: "Erreur serveur (admin collection detail)" });
   }
@@ -117,20 +193,34 @@ export async function adminCreateCollection(req: Request, res: Response) {
       description?: string;
     };
 
-    if (!title || !handle) {
+    if (
+      typeof title !== "string" ||
+      !title.trim() ||
+      typeof handle !== "string" ||
+      !handle.trim()
+    ) {
       return res.status(400).json({ error: "title & handle are required" });
     }
 
+    if (
+      description !== undefined &&
+      description !== null &&
+      typeof description !== "string"
+    )
+      throw new ReservationError(400, "INVALID_COLLECTION");
     const created = await prisma.collection.create({
       data: {
-        title,
-        handle,
+        title: title.trim(),
+        handle: handle.trim(),
         description: description ?? null,
       },
     });
 
     return res.status(201).json(created);
   } catch (err: any) {
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     // handle unique constraint "handle"
     return res
@@ -141,7 +231,7 @@ export async function adminCreateCollection(req: Request, res: Response) {
 // ADMIN: PATCH /api/admin/collections/:id
 export async function adminUpdateCollection(req: Request, res: Response) {
   try {
-    const id = Number(req.params.id);
+    const id = adminId(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
     const { title, handle, description } = req.body as {
@@ -150,6 +240,15 @@ export async function adminUpdateCollection(req: Request, res: Response) {
       description?: string | null;
     };
 
+    for (const value of [title, handle])
+      if (value !== undefined && (typeof value !== "string" || !value.trim()))
+        throw new ReservationError(400, "INVALID_COLLECTION");
+    if (
+      description !== undefined &&
+      description !== null &&
+      typeof description !== "string"
+    )
+      throw new ReservationError(400, "INVALID_COLLECTION");
     const updated = await prisma.collection.update({
       where: { id },
       data: {
@@ -161,6 +260,9 @@ export async function adminUpdateCollection(req: Request, res: Response) {
 
     return res.json(updated);
   } catch (err) {
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     return res
       .status(500)
@@ -170,7 +272,7 @@ export async function adminUpdateCollection(req: Request, res: Response) {
 // Assign product ↔ collection POST /api/admin/collections/:id/products
 export async function adminAddProductToCollection(req: Request, res: Response) {
   try {
-    const collectionId = Number(req.params.id);
+    const collectionId = adminId(req.params.id);
     const { productId } = req.body as { productId: number };
 
     if (isNaN(collectionId) || !productId) {
@@ -183,6 +285,9 @@ export async function adminAddProductToCollection(req: Request, res: Response) {
 
     return res.status(201).json(link);
   } catch (err: any) {
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     // Si déjà lié => unique composite @@id([productId, collectionId])
     return res.status(409).json({ error: "Already linked" });
@@ -195,8 +300,8 @@ export async function adminRemoveProductFromCollection(
   res: Response,
 ) {
   try {
-    const collectionId = Number(req.params.id);
-    const productId = Number(req.params.productId);
+    const collectionId = adminId(req.params.id);
+    const productId = adminId(req.params.productId);
 
     if (isNaN(collectionId) || isNaN(productId)) {
       return res.status(400).json({ error: "Invalid data" });
@@ -208,6 +313,9 @@ export async function adminRemoveProductFromCollection(
 
     return res.status(204).send();
   } catch (err) {
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (unlink product)" });
   }
@@ -215,14 +323,19 @@ export async function adminRemoveProductFromCollection(
 // ADMIN: DELETE /api/admin/collections/:id
 export async function adminDeleteCollection(req: Request, res: Response) {
   try {
-    const id = Number(req.params.id);
+    const id = adminId(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
-    await prisma.productCollection.deleteMany({ where: { collectionId: id } });
-    await prisma.collection.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.productCollection.deleteMany({ where: { collectionId: id } });
+      await tx.collection.delete({ where: { id } });
+    });
 
     return res.status(204).send();
   } catch (err) {
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     return res
       .status(500)

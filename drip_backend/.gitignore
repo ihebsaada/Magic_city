@@ -9,6 +9,7 @@ dist/
 
 # Isolated synthetic PostgreSQL test clusters
 tests/.pg-lot4-*/
+tests/.pg-admin-v2-*/
 
 tests/.render-prep/
 tests/.pg-render18-diagnostic-*/

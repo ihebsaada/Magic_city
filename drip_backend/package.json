@@ -15,7 +15,8 @@
     "build:collections": "ts-node src/scripts/build-collections.ts",
     "test": "npm run build && node tests/run-tests.cjs",
     "typecheck": "tsc --noEmit",
-    "test:integration": "npm run build && node tests/run-postgres-tests.cjs"
+    "test:integration": "npm run build && node tests/run-postgres-tests.cjs",
+    "test:admin-v2": "npm run build && node tests/run-admin-v2-isolated.cjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

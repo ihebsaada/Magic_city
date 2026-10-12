@@ -1,8 +1,25 @@
-import {productReadSelect,toProductDto,productSearch,textQuery,validateTextQueryKeys,CatalogueInputError} from "../services/productRead";
+import {
+  adminId,
+  productInput,
+  imageUrls,
+  collectionIds as parseCollectionIds,
+} from "../services/adminValidation";
+import {
+  productReadSelect,
+  toProductDto,
+  productSearch,
+  textQuery,
+  validateTextQueryKeys,
+  CatalogueInputError,
+} from "../services/productRead";
 import { Request, Response } from "express";
 import prisma from "../prisma";
-import {stockValue,updateVariantStock} from "../services/adminInventory";
-import {ReservationError} from "../services/reservations";
+import {
+  stockValue,
+  updateVariantStock,
+  updateVariantStockInTransaction,
+} from "../services/adminInventory";
+import { ReservationError } from "../services/reservations";
 
 /* =========================
    Helpers
@@ -45,20 +62,50 @@ function arrNumbers(v: any): number[] {
    SHOP: GET /api/products
 ========================= */
 
-export async function getProducts(req:Request,res:Response) {
- try {validateTextQueryKeys(req.query);const search=textQuery(req.query.search,"search"),vendor=textQuery(req.query.vendor,"vendor");
- const products=await prisma.product.findMany({where:{...productSearch(search),...(vendor?{vendor}:{})},take:24,orderBy:{id:"asc"},select:productReadSelect(false)});
- return res.json(products.map(p=>toProductDto(p)));
- }catch(error){if(error instanceof CatalogueInputError)return res.status(400).json({error:error.message});return res.status(500).json({error:"Erreur serveur"});}
+export async function getProducts(req: Request, res: Response) {
+  try {
+    validateTextQueryKeys(req.query);
+    const search = textQuery(req.query.search, "search"),
+      vendor = textQuery(req.query.vendor, "vendor");
+    const products = await prisma.product.findMany({
+      where: { ...productSearch(search), ...(vendor ? { vendor } : {}) },
+      take: 24,
+      orderBy: { id: "asc" },
+      select: productReadSelect(false),
+    });
+    return res.json(products.map((p) => toProductDto(p)));
+  } catch (error) {
+    if (error instanceof CatalogueInputError)
+      return res.status(400).json({ error: error.message });
+    return res.status(500).json({ error: "Erreur serveur" });
+  }
 }
-export async function getProductById(req:Request,res:Response) {
- const id=Number(req.params.id);if(!Number.isInteger(id)||id<1||id>2147483647)return res.status(400).json({error:"ID invalide"});
- try {const p=await prisma.product.findUnique({where:{id},select:productReadSelect(true)});if(!p)return res.status(404).json({error:"Produit non trouvé"});return res.json(toProductDto(p));}
- catch{return res.status(500).json({error:"Erreur serveur"});}
+export async function getProductById(req: Request, res: Response) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1 || id > 2147483647)
+    return res.status(400).json({ error: "ID invalide" });
+  try {
+    const p = await prisma.product.findUnique({
+      where: { id },
+      select: productReadSelect(true),
+    });
+    if (!p) return res.status(404).json({ error: "Produit non trouvé" });
+    return res.json(toProductDto(p));
+  } catch {
+    return res.status(500).json({ error: "Erreur serveur" });
+  }
 }
-export async function getProductByHandle(req:Request,res:Response) {
- try {const p=await prisma.product.findUnique({where:{handle:req.params.handle},select:productReadSelect(true)});if(!p)return res.status(404).json({error:"Produit non trouvé"});return res.json(toProductDto(p));}
- catch{return res.status(500).json({error:"Erreur serveur"});}
+export async function getProductByHandle(req: Request, res: Response) {
+  try {
+    const p = await prisma.product.findUnique({
+      where: { handle: req.params.handle },
+      select: productReadSelect(true),
+    });
+    if (!p) return res.status(404).json({ error: "Produit non trouvé" });
+    return res.json(toProductDto(p));
+  } catch {
+    return res.status(500).json({ error: "Erreur serveur" });
+  }
 }
 
 /* =========================
@@ -67,7 +114,7 @@ export async function getProductByHandle(req:Request,res:Response) {
 
 export async function adminGetProducts(req: Request, res: Response) {
   try {
-    const { search } = req.query as { search?: string };
+    const search = textQuery(req.query.search, "search");
 
     const products = await prisma.product.findMany({
       where: search
@@ -80,8 +127,8 @@ export async function adminGetProducts(req: Request, res: Response) {
           }
         : undefined,
       include: {
-        images: {orderBy:[{position:"asc"},{id:"asc"}]},
-        variants: {orderBy:{id:"asc"}},
+        images: { orderBy: [{ position: "asc" }, { id: "asc" }] },
+        variants: { orderBy: { id: "asc" } },
         collections: { include: { collection: true } },
       },
       orderBy: { id: "asc" },
@@ -100,7 +147,11 @@ export async function adminGetProducts(req: Request, res: Response) {
 
     res.json(mapped);
   } catch (err) {
-    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    if (err instanceof CatalogueInputError)
+      return res.status(400).json({ error: err.message });
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     res.status(500).json({ error: "Erreur serveur (admin products)" });
   }
@@ -108,14 +159,14 @@ export async function adminGetProducts(req: Request, res: Response) {
 
 export async function adminGetProductById(req: Request, res: Response) {
   try {
-    const id = Number(req.params.id);
+    const id = adminId(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "ID invalide" });
 
     const p = await prisma.product.findUnique({
       where: { id },
       include: {
-        images: {orderBy:[{position:"asc"},{id:"asc"}]},
-        variants: {orderBy:{id:"asc"}},
+        images: { orderBy: [{ position: "asc" }, { id: "asc" }] },
+        variants: { orderBy: { id: "asc" } },
         collections: { include: { collection: true } },
       },
     });
@@ -135,7 +186,11 @@ export async function adminGetProductById(req: Request, res: Response) {
 
     res.json(product);
   } catch (err) {
-    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    if (err instanceof CatalogueInputError)
+      return res.status(400).json({ error: err.message });
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     res.status(500).json({ error: "Erreur serveur (admin product)" });
   }
@@ -149,6 +204,7 @@ export async function adminGetProductById(req: Request, res: Response) {
 export async function adminCreateProduct(req: Request, res: Response) {
   try {
     const body = req.body as any;
+    productInput(body, true);
 
     if (!isNonEmptyString(body?.title) || !isNonEmptyString(body?.handle)) {
       return res.status(400).json({ error: "title & handle are required" });
@@ -156,18 +212,29 @@ export async function adminCreateProduct(req: Request, res: Response) {
 
     // ✅ price required for orders
     const price = toNumber(body.price);
-    if (price == null || price <= 0) {
+    if (
+      price == null ||
+      typeof body.price !== "number" ||
+      price <= 0 ||
+      price > 99999999.99
+    ) {
       return res
         .status(400)
         .json({ error: "price is required and must be > 0" });
     }
 
     const compareAtPrice = toNumber(body.compareAtPrice);
-    const inventoryQuantity = body.inventoryQuantity===undefined?0:stockValue(body.inventoryQuantity);
+    const inventoryQuantity =
+      body.inventoryQuantity === undefined
+        ? 0
+        : stockValue(body.inventoryQuantity);
     const sku = isNonEmptyString(body.sku) ? body.sku.trim() : null;
 
-    const images = arrStrings(body.images);
-    const collectionIds = arrNumbers(body.collectionIds);
+    const images = body.images === undefined ? [] : imageUrls(body.images);
+    const collectionIds =
+      body.collectionIds === undefined
+        ? []
+        : parseCollectionIds(body.collectionIds);
 
     const created = await prisma.product.create({
       data: {
@@ -220,15 +287,19 @@ export async function adminCreateProduct(req: Request, res: Response) {
           : undefined,
       },
       include: {
-        images: {orderBy:[{position:"asc"},{id:"asc"}]},
-        variants: {orderBy:{id:"asc"}},
+        images: { orderBy: [{ position: "asc" }, { id: "asc" }] },
+        variants: { orderBy: { id: "asc" } },
         collections: { include: { collection: true } },
       },
     });
 
     return res.status(201).json(created);
   } catch (err: any) {
-    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    if (err instanceof CatalogueInputError)
+      return res.status(400).json({ error: err.message });
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (create product)" });
   }
@@ -241,54 +312,95 @@ export async function adminCreateProduct(req: Request, res: Response) {
 
 export async function adminUpdateProduct(req: Request, res: Response) {
   try {
-    const id = Number(req.params.id);
+    const id = adminId(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
     const body = req.body as any;
 
-    const replaceImages = Array.isArray(body.images)
-      ? arrStrings(body.images)
-      : undefined;
-
-    if (replaceImages) {
-      await prisma.productImage.deleteMany({ where: { productId: id } });
-      if (replaceImages.length) {
-        await prisma.productImage.createMany({
-          data: replaceImages.map((src: string, idx: number) => ({
-            src,
-            position: idx + 1,
-            productId: id,
-          })),
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT "id" FROM "Product" WHERE "id"=$1 FOR UPDATE',
+        id,
+      );
+      if (!(await tx.product.findUnique({ where: { id } })))
+        throw new ReservationError(404, "PRODUCT_NOT_FOUND");
+      // Older Admin builds send this field on PATCH. Keep that request compatible;
+      // the updated Admin uses the dedicated PUT association endpoint.
+      if (body.collectionIds !== undefined) {
+        const ids = parseCollectionIds(body.collectionIds);
+        if (
+          (await tx.collection.count({ where: { id: { in: ids } } })) !==
+          ids.length
+        )
+          throw new ReservationError(422, "COLLECTION_NOT_FOUND");
+        await tx.productCollection.deleteMany({
+          where: { productId: id, collectionId: { notIn: ids } },
         });
+        if (ids.length)
+          await tx.productCollection.createMany({
+            data: ids.map((collectionId) => ({ productId: id, collectionId })),
+            skipDuplicates: true,
+          });
       }
-    }
-
-    const updated = await prisma.product.update({
-      where: { id },
-      data: {
-        title: body.title ?? undefined,
-        handle: body.handle ?? undefined,
-        vendor: body.vendor ?? undefined,
-        descriptionHtml: body.descriptionHtml ?? undefined,
-        productType: body.productType ?? undefined,
-        status: body.status ?? undefined,
-        tags: body.tags ?? undefined,
-
-        // ✅ option names
-        option1Name: body.option1Name ?? undefined,
-        option2Name: body.option2Name ?? undefined,
-        option3Name: body.option3Name ?? undefined,
-      },
-      include: {
-        images: {orderBy:[{position:"asc"},{id:"asc"}]},
-        collections: { include: { collection: true } },
-        variants: {orderBy:{id:"asc"}},
-      },
+      if (body.variantUpdate !== undefined) {
+        if (
+          !body.variantUpdate ||
+          typeof body.variantUpdate !== "object" ||
+          Array.isArray(body.variantUpdate) ||
+          body.variantUpdate.variantId === undefined
+        )
+          throw new ReservationError(400, "INVALID_VARIANT");
+        await updateVariantStockInTransaction(tx, id, body.variantUpdate);
+      }
+      if (body.images !== undefined) {
+        const images = imageUrls(body.images);
+        const current = await tx.productImage.findMany({
+          where: { productId: id },
+          orderBy: [{ position: "asc" }, { id: "asc" }],
+        });
+        if (
+          JSON.stringify(current.map((i) => i.src)) !== JSON.stringify(images)
+        ) {
+          await tx.productImage.deleteMany({ where: { productId: id } });
+          if (images.length)
+            await tx.productImage.createMany({
+              data: images.map((src, idx) => ({
+                src,
+                position: idx + 1,
+                productId: id,
+              })),
+            });
+        }
+      }
+      return tx.product.update({
+        where: { id },
+        data: {
+          title: body.title === undefined ? undefined : body.title.trim(),
+          handle: body.handle === undefined ? undefined : body.handle.trim(),
+          vendor: body.vendor,
+          descriptionHtml: body.descriptionHtml,
+          productType: body.productType,
+          status: body.status,
+          tags: body.tags,
+          option1Name: body.option1Name,
+          option2Name: body.option2Name,
+          option3Name: body.option3Name,
+        },
+        include: {
+          images: { orderBy: [{ position: "asc" }, { id: "asc" }] },
+          variants: { orderBy: { id: "asc" } },
+          collections: { include: { collection: true } },
+        },
+      });
     });
 
     return res.json(updated);
   } catch (err) {
-    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    if (err instanceof CatalogueInputError)
+      return res.status(400).json({ error: err.message });
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (update product)" });
   }
@@ -301,14 +413,18 @@ export async function adminUpdateProduct(req: Request, res: Response) {
 
 export async function adminUpdateDefaultVariant(req: Request, res: Response) {
   try {
-    const productId = Number(req.params.id);
+    const productId = adminId(req.params.id);
     if (isNaN(productId)) return res.status(400).json({ error: "Invalid id" });
 
-    const v=await updateVariantStock(productId,req.body??{});
+    const v = await updateVariantStock(productId, req.body ?? {});
 
     return res.json(v);
   } catch (err) {
-    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    if (err instanceof CatalogueInputError)
+      return res.status(400).json({ error: err.message });
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (update variant)" });
   }
@@ -320,20 +436,33 @@ export async function adminUpdateDefaultVariant(req: Request, res: Response) {
 
 export async function adminDeleteProduct(req: Request, res: Response) {
   try {
-    const id = Number(req.params.id);
+    const id = adminId(req.params.id);
     if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
-    await prisma.$transaction(async tx=>{
-      await tx.$queryRawUnsafe('SELECT "id" FROM "Product" WHERE "id"=$1 FOR UPDATE',id);
-      if(await tx.stockReservationItem.count({where:{variant:{productId:id}}}))
-        throw new ReservationError(409,"PRODUCT_HAS_RESERVATION_HISTORY");
-      await tx.productCollection.deleteMany({where:{productId:id}});
-      await tx.product.delete({where:{id}});
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT "id" FROM "Product" WHERE "id"=$1 FOR UPDATE',
+        id,
+      );
+      if (await tx.orderItem.count({ where: { productId: id } }))
+        throw new ReservationError(409, "PRODUCT_HAS_ORDER_HISTORY");
+      if (
+        await tx.stockReservationItem.count({
+          where: { variant: { productId: id } },
+        })
+      )
+        throw new ReservationError(409, "PRODUCT_HAS_RESERVATION_HISTORY");
+      await tx.productCollection.deleteMany({ where: { productId: id } });
+      await tx.product.delete({ where: { id } });
     });
 
     return res.status(204).send();
   } catch (err) {
-    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    if (err instanceof CatalogueInputError)
+      return res.status(400).json({ error: err.message });
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     return res.status(500).json({ error: "Erreur serveur (delete product)" });
   }
@@ -345,29 +474,43 @@ export async function adminDeleteProduct(req: Request, res: Response) {
 
 export async function adminSetProductCollections(req: Request, res: Response) {
   try {
-    const productId = Number(req.params.id);
+    const productId = adminId(req.params.id);
     if (isNaN(productId)) return res.status(400).json({ error: "Invalid id" });
 
-    const { collectionIds } = req.body as { collectionIds: number[] };
-    if (!Array.isArray(collectionIds)) {
-      return res.status(400).json({ error: "collectionIds must be an array" });
-    }
-
-    await prisma.productCollection.deleteMany({ where: { productId } });
-
-    if (collectionIds.length) {
-      await prisma.productCollection.createMany({
-        data: collectionIds.map((collectionId) => ({
-          productId,
-          collectionId,
-        })),
-        skipDuplicates: true,
+    const collectionIds = parseCollectionIds(req.body?.collectionIds);
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT "id" FROM "Product" WHERE "id"=$1 FOR UPDATE',
+        productId,
+      );
+      if (!(await tx.product.findUnique({ where: { id: productId } })))
+        throw new ReservationError(404, "PRODUCT_NOT_FOUND");
+      if (
+        (await tx.collection.count({
+          where: { id: { in: collectionIds } },
+        })) !== collectionIds.length
+      )
+        throw new ReservationError(422, "COLLECTION_NOT_FOUND");
+      await tx.productCollection.deleteMany({
+        where: { productId, collectionId: { notIn: collectionIds } },
       });
-    }
+      if (collectionIds.length)
+        await tx.productCollection.createMany({
+          data: collectionIds.map((collectionId) => ({
+            productId,
+            collectionId,
+          })),
+          skipDuplicates: true,
+        });
+    });
 
     return res.status(200).json({ ok: true });
   } catch (err) {
-    if(err instanceof ReservationError)return res.status(err.status).json({error:err.code});
+    if (err instanceof CatalogueInputError)
+      return res.status(400).json({ error: err.message });
+    if (err instanceof ReservationError)
+      return res.status(err.status).json({ error: err.code });
+    if (err && typeof err === "object" && "code" in err) throw err;
     console.error("API operation failed");
     return res
       .status(500)
