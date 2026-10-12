@@ -1,13 +1,18 @@
+import { productPrice } from "@/lib/adminValues";
+import { errorMessage } from "@/services/api";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   createProduct,
   deleteProduct,
   getProducts,
-  updateProduct,
-  updateDefaultVariant,
+  saveProductChanges,
 } from "@/services/productService";
 import { getCollections } from "@/services/collectionService";
+import type {
+  ProductCreatePayload,
+  ProductUpdatePayload,
+} from "@/services/productService";
 import type { Product, Collection } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -52,7 +57,7 @@ export default function Products() {
       const data = await getProducts(search || undefined);
       setProducts(data);
     } catch (err) {
-      setError("Failed to load products. Check your API connection.");
+      setError(errorMessage(err));
       console.error(err);
     } finally {
       setLoading(false);
@@ -84,10 +89,7 @@ export default function Products() {
         );
 
   const getMainPrice = (product: Product) => {
-    if (product.variants?.[0]?.price) {
-      return `$${product.variants[0].price}`;
-    }
-    return "—";
+    return productPrice(product.variants ?? []);
   };
 
   const getMainCollection = (product: Product) => {
@@ -125,20 +127,21 @@ export default function Products() {
     setDialogOpen(true);
   }
 
-  async function onCreate(payload: any) {
+  async function onCreate(payload: ProductCreatePayload) {
     await createProduct(payload);
     await refresh();
   }
 
-  async function onUpdate(id: number, payload: any) {
-    // update product basic fields
-    await updateProduct(id, payload);
-
-    // if you have endpoint PUT /admin/products/:id/collections, you can call it here
-    // BUT your backend create/update already handles collectionIds in create
-    // For update, your controller currently ignores collectionIds -> so keep as TODO if needed.
-
-    await refresh();
+  async function onUpdate(id: number, payload: ProductUpdatePayload) {
+    try {
+      await saveProductChanges(
+        id,
+        payload,
+        activeProduct?.collections?.map((c) => c.id) ?? [],
+      );
+    } finally {
+      await refresh();
+    }
   }
 
   async function onDelete(id: number) {
@@ -147,13 +150,9 @@ export default function Products() {
       await deleteProduct(id);
       toast({ title: "Deleted", description: "Product deleted." });
       await refresh();
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message ?? "Delete failed" });
+    } catch (e: unknown) {
+      toast({ title: "Error", description: errorMessage(e) });
     }
-  }
-  async function onUpdateDefaultVariant(productId: number, payload: any) {
-    await updateDefaultVariant(productId, payload);
-    await refresh();
   }
 
   return (
@@ -179,7 +178,6 @@ export default function Products() {
         collections={collections}
         onCreate={onCreate}
         onUpdate={onUpdate}
-        onUpdateDefaultVariant={onUpdateDefaultVariant}
       />
 
       {error && (

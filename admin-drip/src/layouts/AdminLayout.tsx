@@ -49,7 +49,7 @@ export function AdminLayout() {
       <aside
         className={cn(
           "fixed lg:static inset-y-0 left-0 z-50 w-64 bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-300 lg:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Logo */}
@@ -78,7 +78,7 @@ export function AdminLayout() {
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                   isActive
                     ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                    : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                    : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent",
                 )
               }
             >
@@ -93,12 +93,14 @@ export function AdminLayout() {
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9">
               <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-sm">
-                {user?.name?.charAt(0).toUpperCase() || "A"}
+                {user?.email?.charAt(0).toUpperCase() || "A"}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name || "Admin"}</p>
-              <p className="text-xs text-sidebar-foreground/60 truncate">{user?.email}</p>
+              <p className="text-sm font-medium truncate">Admin</p>
+              <p className="text-xs text-sidebar-foreground/60 truncate">
+                {user?.email}
+              </p>
             </div>
           </div>
         </div>
@@ -117,7 +119,12 @@ export function AdminLayout() {
 
           <div className="hidden lg:block" />
 
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="gap-2"
+          >
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Logout</span>
           </Button>

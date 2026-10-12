@@ -110,8 +110,11 @@ export default function CollectionFormDialog({
         toast({ title: "Updated", description: "Collection updated." });
       }
       onOpenChange(false);
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message ?? "Operation failed" });
+    } catch (e: unknown) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Operation failed",
+      });
     } finally {
       setSaving(false);
     }

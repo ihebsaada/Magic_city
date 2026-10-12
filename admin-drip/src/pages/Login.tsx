@@ -1,10 +1,17 @@
+import { errorMessage } from "@/services/api";
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 
 export default function Login() {
@@ -15,40 +22,51 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || "/admin";
+  const requested = (location.state as { from?: { pathname: string } })?.from
+    ?.pathname;
+  const from =
+    requested?.startsWith("/admin") && !requested.startsWith("//")
+      ? requested
+      : "/admin";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    const success = await login(email, password);
-
-    if (success) {
-      toast({ title: "Welcome back!", description: "You have been logged in successfully." });
+    try {
+      await login(email, password);
+      toast({
+        title: "Welcome back!",
+        description: "You have been logged in successfully.",
+      });
       navigate(from, { replace: true });
-    } else {
+    } catch (error) {
       toast({
         title: "Login failed",
-        description: "Please use an email containing 'admin' to login.",
+        description: errorMessage(error),
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
         <div className="text-center mb-8">
-          <h1 className="font-display text-3xl font-bold tracking-tight">Magic City Drip</h1>
+          <h1 className="font-display text-3xl font-bold tracking-tight">
+            Magic City Drip
+          </h1>
           <p className="text-muted-foreground mt-2">Admin Portal</p>
         </div>
 
         <Card className="border-border/50 shadow-lg">
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-xl">Sign in</CardTitle>
-            <CardDescription>Enter your credentials to access the admin dashboard</CardDescription>
+            <CardDescription>
+              Enter your credentials to access the admin dashboard
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">

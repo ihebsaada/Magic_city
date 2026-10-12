@@ -1,3 +1,8 @@
+import { validImageUrl, validMoney } from "@/lib/adminValues";
+import type {
+  DefaultVariantUpdatePayload,
+  ProductUpdatePayload,
+} from "@/services/productService";
 import { useEffect, useMemo, useState } from "react";
 import type { Collection, Product } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -68,20 +73,10 @@ type Props = {
       images?: string[];
       collectionIds?: number[];
 
+      variantUpdate?: DefaultVariantUpdatePayload;
       option1Name?: string | null;
       option2Name?: string | null;
       option3Name?: string | null;
-    },
-  ) => Promise<void>;
-
-  // ✅ updates default variant (price/stock/sku)
-  onUpdateDefaultVariant: (
-    productId: number,
-    payload: {
-      price?: number;
-      compareAtPrice?: number | null;
-      inventoryQuantity?: number | null;
-      sku?: string | null;
     },
   ) => Promise<void>;
 };
@@ -95,9 +90,9 @@ function slugifyHandle(input: string) {
     .replace(/^-+|-+$/g, "");
 }
 
-function normalizeImages(raw: any): string[] {
+function normalizeImages(raw: Product["images"] | string[]): string[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((i) => (typeof i === "string" ? i : i?.src)).filter(Boolean);
+  return raw.map((i) => (typeof i === "string" ? i : i.src)).filter(Boolean);
 }
 
 function parseNumberOrNull(v: string): number | null {
@@ -107,27 +102,12 @@ function parseNumberOrNull(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-function parseNumberOrUndefined(v: string): number | undefined {
-  const s = v.trim();
-  if (!s) return undefined;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : undefined;
-}
-
 export default function ProductFormDialog(props: Props) {
-  const {
-    open,
-    onOpenChange,
-    mode,
-    product,
-    collections,
-    onCreate,
-    onUpdate,
-    onUpdateDefaultVariant,
-  } = props;
+  const { open, onOpenChange, mode, product, collections, onCreate, onUpdate } =
+    props;
 
   const initial = useMemo(() => {
-    const p: any = product;
+    const p = product;
 
     if (mode === "edit" && p) {
       const v0 = Array.isArray(p.variants) ? p.variants[0] : null;
@@ -137,12 +117,12 @@ export default function ProductFormDialog(props: Props) {
         handle: p.handle ?? "",
         vendor: p.vendor ?? "",
         productType: p.productType ?? "",
-        status: p.status ?? "active",
+        status: p.status ?? "",
         descriptionHtml: p.descriptionHtml ?? "",
         tags: Array.isArray(p.tags) ? p.tags : [],
         images: normalizeImages(p.images),
         collectionIds: Array.isArray(p.collections)
-          ? p.collections.map((c: any) => c.id)
+          ? p.collections.map((c) => c.id)
           : [],
 
         // ✅ pricing/inventory from default variant
@@ -154,8 +134,8 @@ export default function ProductFormDialog(props: Props) {
           v0?.inventoryQuantity != null ? String(v0.inventoryQuantity) : "",
 
         // ✅ option names stored on Product
-        option1Name: p.option1Name ?? "Size",
-        option2Name: p.option2Name ?? "Color",
+        option1Name: p.option1Name ?? "",
+        option2Name: p.option2Name ?? "",
         option3Name: p.option3Name ?? "",
       };
     }
@@ -198,6 +178,10 @@ export default function ProductFormDialog(props: Props) {
   const [images, setImages] = useState<string[]>(initial.images);
 
   // pricing / inventory (now REAL)
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+  const selectedVariant = product?.variants?.find(
+    (v) => String(v.id) === selectedVariantId,
+  );
   const [price, setPrice] = useState<string>(initial.price);
   const [compareAtPrice, setCompareAtPrice] = useState<string>(
     initial.compareAtPrice,
@@ -209,10 +193,6 @@ export default function ProductFormDialog(props: Props) {
   const [option1Name, setOption1Name] = useState<string>(initial.option1Name);
   const [option2Name, setOption2Name] = useState<string>(initial.option2Name);
   const [option3Name, setOption3Name] = useState<string>(initial.option3Name);
-
-  // UI-only fields (seo)
-  const [seoTitle, setSeoTitle] = useState("");
-  const [seoDesc, setSeoDesc] = useState("");
 
   // Helpers inputs
   const [tagInput, setTagInput] = useState("");
@@ -247,12 +227,31 @@ export default function ProductFormDialog(props: Props) {
     setImageInput("");
     setSaving(false);
 
-    // SEO reset
-    setSeoTitle("");
-    setSeoDesc("");
+    setSelectedVariantId(
+      mode === "edit" && product?.variants?.length === 1
+        ? String(product.variants[0].id)
+        : "",
+    );
+    if (mode === "edit" && product?.variants?.length !== 1) {
+      setPrice("");
+      setStock("");
+      setSku("");
+      setCompareAtPrice("");
+    }
 
     setAutoHandle(!initial.handle);
-  }, [open, initial]);
+  }, [open, initial, mode, product]);
+
+  function selectVariant(value: string) {
+    setSelectedVariantId(value);
+    const v = product?.variants.find((v) => String(v.id) === value);
+    setPrice(v?.price == null ? "" : String(v.price));
+    setCompareAtPrice(
+      v?.compareAtPrice == null ? "" : String(v.compareAtPrice),
+    );
+    setSku(v?.sku ?? "");
+    setStock(v?.inventoryQuantity == null ? "" : String(v.inventoryQuantity));
+  }
 
   // Auto handle from title if user didn't manually edit
   useEffect(() => {
@@ -286,7 +285,7 @@ export default function ProductFormDialog(props: Props) {
   const addImage = () => {
     const url = imageInput.trim();
     if (!url) return;
-    if (!/^https?:\/\//i.test(url)) {
+    if (!validImageUrl(url)) {
       toast({
         title: "Invalid URL",
         description: "Image must start with http:// or https://",
@@ -331,7 +330,7 @@ export default function ProductFormDialog(props: Props) {
     // ✅ validate price for create
     if (mode === "create") {
       const p = parseNumberOrNull(price);
-      if (p == null || p <= 0) {
+      if (p == null || !validMoney(p)) {
         toast({
           title: "Price required",
           description: "Please enter a valid price (> 0).",
@@ -342,13 +341,27 @@ export default function ProductFormDialog(props: Props) {
 
     // ✅ validate numeric fields if present
     const stockN = parseNumberOrNull(stock);
-    if (stock.trim() && stockN == null) {
-      toast({ title: "Invalid stock", description: "Stock must be a number." });
+    if (
+      (mode === "create" || selectedVariant) &&
+      stock.trim() &&
+      (stockN == null ||
+        !Number.isInteger(stockN) ||
+        stockN < 0 ||
+        stockN > 2147483647)
+    ) {
+      toast({
+        title: "Invalid stock",
+        description: "Stock must be a non-negative whole number.",
+      });
       return;
     }
 
     const compareN = parseNumberOrNull(compareAtPrice);
-    if (compareAtPrice.trim() && compareN == null) {
+    if (
+      (mode === "create" || selectedVariant) &&
+      compareAtPrice.trim() &&
+      (compareN == null || !validMoney(compareN, true))
+    ) {
       toast({
         title: "Invalid compare price",
         description: "Compare-at price must be a number.",
@@ -356,6 +369,36 @@ export default function ProductFormDialog(props: Props) {
       return;
     }
 
+    if (
+      mode === "edit" &&
+      selectedVariant &&
+      price.trim() &&
+      !validMoney(Number(price))
+    ) {
+      toast({
+        title: "Invalid price",
+        description:
+          "Enter a positive EUR amount with at most two decimal places.",
+      });
+      return;
+    }
+    if (
+      images.some((url) => !validImageUrl(url)) &&
+      JSON.stringify(images) !== JSON.stringify(initial.images)
+    ) {
+      toast({
+        title: "Invalid image URL",
+        description: "Use HTTP or HTTPS image URLs without credentials.",
+      });
+      return;
+    }
+    if (
+      mode === "edit" &&
+      initial.images.length > 0 &&
+      images.length === 0 &&
+      !confirm("Remove all product images?")
+    )
+      return;
     setSaving(true);
     try {
       if (mode === "create") {
@@ -372,7 +415,7 @@ export default function ProductFormDialog(props: Props) {
 
           price: Number(price),
           compareAtPrice: compareN,
-          inventoryQuantity: stockN,
+          inventoryQuantity: stockN ?? 0,
           sku: sku.trim() || null,
 
           option1Name: option1Name.trim() || null,
@@ -387,30 +430,70 @@ export default function ProductFormDialog(props: Props) {
       } else {
         if (!product?.id) throw new Error("Missing product id");
 
-        // 1) update Product
-        await onUpdate(product.id, {
+        const values = {
           title: title.trim(),
           handle: finalHandle,
           vendor: vendor.trim() || null,
           productType: productType.trim() || null,
           descriptionHtml: descriptionHtml.trim() || null,
-          status,
+          status: status || null,
           tags,
           images,
-          collectionIds,
-
           option1Name: option1Name.trim() || null,
           option2Name: option2Name.trim() || null,
           option3Name: option3Name.trim() || null,
-        });
-
-        // 2) update default variant
-        await onUpdateDefaultVariant(product.id, {
-          price: parseNumberOrUndefined(price),
-          compareAtPrice: compareAtPrice.trim() ? compareN : null,
-          inventoryQuantity: stock.trim() ? stockN : null,
-          sku: sku.trim() || null,
-        });
+        };
+        const original = {
+          title: initial.title,
+          handle: initial.handle,
+          vendor: initial.vendor || null,
+          productType: initial.productType || null,
+          descriptionHtml: initial.descriptionHtml || null,
+          status: initial.status || null,
+          tags: initial.tags,
+          images: initial.images,
+          option1Name: initial.option1Name || null,
+          option2Name: initial.option2Name || null,
+          option3Name: initial.option3Name || null,
+        };
+        const changed: ProductUpdatePayload = Object.fromEntries(
+          Object.entries(values).filter(
+            ([key, value]) =>
+              JSON.stringify(value) !==
+              JSON.stringify(original[key as keyof typeof original]),
+          ),
+        );
+        const variantUpdate: DefaultVariantUpdatePayload = {};
+        if (selectedVariant) {
+          if (price !== String(selectedVariant.price ?? "")) {
+            if (!price.trim()) throw new Error("Price cannot be cleared.");
+            variantUpdate.price = Number(price);
+          }
+          if (compareAtPrice !== String(selectedVariant.compareAtPrice ?? ""))
+            variantUpdate.compareAtPrice = compareAtPrice.trim()
+              ? compareN
+              : null;
+          if (sku !== (selectedVariant.sku ?? ""))
+            variantUpdate.sku = sku.trim() || null;
+          if (stock !== String(selectedVariant.inventoryQuantity ?? "")) {
+            if (!stock.trim())
+              throw new Error(
+                "Enter an explicit physical stock quantity. Blank does not mean unlimited.",
+              );
+            variantUpdate.inventoryQuantity = stockN;
+          }
+          if (Object.keys(variantUpdate).length)
+            changed.variantUpdate = {
+              ...variantUpdate,
+              variantId: selectedVariant.id,
+            };
+        }
+        if (
+          JSON.stringify([...collectionIds].sort()) !==
+          JSON.stringify([...initial.collectionIds].sort())
+        )
+          changed.collectionIds = collectionIds;
+        if (Object.keys(changed).length) await onUpdate(product.id, changed);
 
         toast({
           title: "Updated",
@@ -419,8 +502,11 @@ export default function ProductFormDialog(props: Props) {
       }
 
       onOpenChange(false);
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message ?? "Operation failed" });
+    } catch (e: unknown) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Operation failed",
+      });
     } finally {
       setSaving(false);
     }
@@ -443,8 +529,10 @@ export default function ProductFormDialog(props: Props) {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Title *</Label>
+                  <Label htmlFor="product-field-1">Title *</Label>
                   <Input
+                    id="product-field-1"
+                    aria-label="Title *"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                   />
@@ -476,17 +564,19 @@ export default function ProductFormDialog(props: Props) {
 
               <div className="grid gap-4 sm:grid-cols-2 mt-4">
                 <div className="space-y-2">
-                  <Label>Vendor</Label>
+                  <Label htmlFor="product-field-2">Vendor</Label>
                   <Input
+                    id="product-field-2"
+                    aria-label="Vendor"
                     value={vendor}
                     onChange={(e) => setVendor(e.target.value)}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Status</Label>
+                  <Label htmlFor="product-field-3">Status</Label>
                   <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger>
+                    <SelectTrigger aria-label="Product status">
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -499,8 +589,10 @@ export default function ProductFormDialog(props: Props) {
               </div>
 
               <div className="space-y-2 mt-4">
-                <Label>Product type</Label>
+                <Label htmlFor="product-field-4">Product type</Label>
                 <Input
+                  id="product-field-4"
+                  aria-label="Product type"
                   value={productType}
                   onChange={(e) => setProductType(e.target.value)}
                   placeholder="Shoes / Sneakers / ..."
@@ -508,8 +600,12 @@ export default function ProductFormDialog(props: Props) {
               </div>
 
               <div className="space-y-2 mt-4">
-                <Label>Description (HTML or text)</Label>
+                <Label htmlFor="product-field-5">
+                  Description (HTML or text)
+                </Label>
                 <Textarea
+                  id="product-field-5"
+                  aria-label="Description (HTML or text)"
                   value={descriptionHtml}
                   onChange={(e) => setDescriptionHtml(e.target.value)}
                   rows={5}
@@ -578,6 +674,7 @@ export default function ProductFormDialog(props: Props) {
                         <button
                           key={c.id}
                           type="button"
+                          aria-pressed={active}
                           onClick={() => toggleCollection(c.id)}
                           className={`text-sm rounded-full border px-3 py-1 transition ${
                             active
@@ -627,8 +724,8 @@ export default function ProductFormDialog(props: Props) {
                 </div>
 
                 <p className="text-xs text-muted-foreground">
-                  On update: images are replaced (deleteMany + createMany côté
-                  backend).
+                  Images change only after a successful save. Removing all
+                  images requires confirmation.
                 </p>
 
                 {images.length ? (
@@ -651,6 +748,7 @@ export default function ProductFormDialog(props: Props) {
                               type="button"
                               variant="outline"
                               size="sm"
+                              aria-label={`Move image ${idx + 1} up`}
                               disabled={idx === 0}
                               onClick={() => moveImage(idx, idx - 1)}
                             >
@@ -660,6 +758,7 @@ export default function ProductFormDialog(props: Props) {
                               type="button"
                               variant="outline"
                               size="sm"
+                              aria-label={`Move image ${idx + 1} down`}
                               disabled={idx === images.length - 1}
                               onClick={() => moveImage(idx, idx + 1)}
                             >
@@ -669,6 +768,7 @@ export default function ProductFormDialog(props: Props) {
                               type="button"
                               variant="destructive"
                               size="sm"
+                              aria-label={`Remove image ${idx + 1}`}
                               onClick={() => removeImage(idx)}
                             >
                               <X className="h-4 w-4" />
@@ -677,7 +777,6 @@ export default function ProductFormDialog(props: Props) {
                         </div>
 
                         <div className="mt-3 flex items-center justify-center rounded-md bg-muted p-3">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={src}
                             alt=""
@@ -706,57 +805,107 @@ export default function ProductFormDialog(props: Props) {
 
             {/* PRICING / INVENTORY */}
             <section className="rounded-xl border p-4">
-              <div className="mb-3 font-medium">Pricing & Inventory</div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Price *</Label>
-                  <Input
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    placeholder="e.g. 299.000"
-                  />
+              <div className="mb-3 font-medium">Pricing & Inventory (EUR)</div>
+              {mode === "edit" && (
+                <div className="space-y-2 mb-4">
+                  <Label htmlFor="variant-selection">Variant to edit</Label>
+                  <select
+                    id="variant-selection"
+                    aria-label="Variant to edit"
+                    className="w-full rounded-md border bg-background p-2"
+                    value={selectedVariantId}
+                    onChange={(e) => selectVariant(e.target.value)}
+                  >
+                    <option value="">
+                      Select a variant to edit its price, SKU and stock
+                    </option>
+                    {product?.variants.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.title || "Untitled"} — {v.sku || "No SKU"} (#{v.id})
+                      </option>
+                    ))}
+                  </select>
+                  {selectedVariant && (
+                    <p className="text-sm text-muted-foreground">
+                      Physical:{" "}
+                      {selectedVariant.inventoryQuantity ?? "Unavailable"} ·
+                      Reserved: {selectedVariant.reservedQuantity ?? 0} ·
+                      Available:{" "}
+                      {Math.max(
+                        0,
+                        (selectedVariant.inventoryQuantity ?? 0) -
+                          (selectedVariant.reservedQuantity ?? 0),
+                      )}
+                      . Blank stock is unavailable, never unlimited.
+                    </p>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label>Compare at price</Label>
-                  <Input
-                    value={compareAtPrice}
-                    onChange={(e) => setCompareAtPrice(e.target.value)}
-                    placeholder="e.g. 349.000"
-                  />
+              )}
+              <fieldset
+                disabled={mode === "edit" && !selectedVariant}
+                className="disabled:opacity-50"
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="product-field-6">Price *</Label>
+                    <Input
+                      id="product-field-6"
+                      aria-label="Price *"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="e.g. 299.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="product-field-7">Compare at price</Label>
+                    <Input
+                      id="product-field-7"
+                      aria-label="Compare at price"
+                      value={compareAtPrice}
+                      onChange={(e) => setCompareAtPrice(e.target.value)}
+                      placeholder="e.g. 349.00"
+                    />
+                  </div>
                 </div>
-              </div>
 
+                <div className="grid gap-4 sm:grid-cols-2 mt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="product-field-8">SKU</Label>
+                    <Input
+                      id="product-field-8"
+                      aria-label="SKU"
+                      value={sku}
+                      onChange={(e) => setSku(e.target.value)}
+                      placeholder="SKU-123"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="product-field-9">Stock</Label>
+                    <Input
+                      id="product-field-9"
+                      aria-label="Stock"
+                      value={stock}
+                      onChange={(e) => setStock(e.target.value)}
+                      placeholder="e.g. 20"
+                    />
+                  </div>
+                </div>
+              </fieldset>
               <div className="grid gap-4 sm:grid-cols-2 mt-4">
                 <div className="space-y-2">
-                  <Label>SKU</Label>
+                  <Label htmlFor="product-field-10">Option 1 name</Label>
                   <Input
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    placeholder="SKU-123"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Stock</Label>
-                  <Input
-                    value={stock}
-                    onChange={(e) => setStock(e.target.value)}
-                    placeholder="e.g. 20"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 mt-4">
-                <div className="space-y-2">
-                  <Label>Option 1 name</Label>
-                  <Input
+                    id="product-field-10"
+                    aria-label="Option 1 name"
                     value={option1Name}
                     onChange={(e) => setOption1Name(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Option 2 name</Label>
+                  <Label htmlFor="product-field-11">Option 2 name</Label>
                   <Input
+                    id="product-field-11"
+                    aria-label="Option 2 name"
                     value={option2Name}
                     onChange={(e) => setOption2Name(e.target.value)}
                   />
@@ -764,44 +913,18 @@ export default function ProductFormDialog(props: Props) {
               </div>
 
               <div className="space-y-2 mt-4">
-                <Label>Option 3 name</Label>
+                <Label htmlFor="product-field-12">Option 3 name</Label>
                 <Input
+                  id="product-field-12"
+                  aria-label="Option 3 name"
                   value={option3Name}
                   onChange={(e) => setOption3Name(e.target.value)}
                 />
               </div>
 
               <p className="text-xs text-muted-foreground mt-3">
-                These fields are saved: price/stock/sku in the default variant,
-                option names in Product.
-              </p>
-            </section>
-
-            {/* SEO */}
-            <section className="rounded-xl border p-4">
-              <div className="mb-3 font-medium">SEO (optional)</div>
-
-              <div className="space-y-2">
-                <Label>SEO title</Label>
-                <Input
-                  value={seoTitle}
-                  onChange={(e) => setSeoTitle(e.target.value)}
-                  placeholder="Title for search engines"
-                />
-              </div>
-
-              <div className="space-y-2 mt-4">
-                <Label>SEO description</Label>
-                <Textarea
-                  value={seoDesc}
-                  onChange={(e) => setSeoDesc(e.target.value)}
-                  rows={3}
-                  placeholder="Short description..."
-                />
-              </div>
-
-              <p className="text-xs text-muted-foreground mt-3">
-                Saved later if you add seoTitle/seoDescription in Prisma.
+                Price, SKU and stock apply only to the selected variant. Option
+                names apply to the product.
               </p>
             </section>
 

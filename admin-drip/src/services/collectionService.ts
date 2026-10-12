@@ -9,7 +9,9 @@ export async function getCollections(): Promise<Collection[]> {
 export async function getCollectionProducts(
   handle: string,
 ): Promise<CollectionWithProducts> {
-  return apiGet<CollectionWithProducts>(`/admin/collections/${handle}`);
+  return apiGet<CollectionWithProducts>(
+    `/admin/collections/${encodeURIComponent(handle)}`,
+  );
 }
 
 // ✅ Backend: POST /admin/collections
@@ -17,8 +19,8 @@ export async function createCollection(data: {
   title: string;
   handle: string;
   description?: string | null;
-}): Promise<Collection> {
-  return apiPost<Collection>("/admin/collections", data);
+}): Promise<Omit<Collection, "productsCount">> {
+  return apiPost<Omit<Collection, "productsCount">>("/admin/collections", data);
 }
 
 // ✅ Backend: PATCH /admin/collections/:id
@@ -27,8 +29,11 @@ export async function updateCollection(
   data: Partial<Pick<Collection, "title" | "handle">> & {
     description?: string | null;
   },
-): Promise<Collection> {
-  return apiPatch<Collection>(`/admin/collections/${id}`, data);
+): Promise<Omit<Collection, "productsCount">> {
+  return apiPatch<Omit<Collection, "productsCount">>(
+    `/admin/collections/${id}`,
+    data,
+  );
 }
 
 // ⚠️ nécessite backend: DELETE /admin/collections/:id

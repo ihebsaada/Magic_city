@@ -1,3 +1,10 @@
+import { formatEUR } from "@/lib/adminValues";
+import { errorMessage } from "@/services/api";
+import ProductFormDialog from "@/components/admin/ProductFormDialog";
+import { getCollections } from "@/services/collectionService";
+import { saveProductChanges, updateProduct } from "@/services/productService";
+import type { ProductUpdatePayload } from "@/services/productService";
+import type { Collection } from "@/types";
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getProductById } from "@/services/productService";
@@ -23,6 +30,15 @@ export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState({
+    title: "",
+    handle: "",
+    vendor: "",
+    productType: "",
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -31,8 +47,15 @@ export default function ProductDetail() {
       try {
         const data = await getProductById(Number(id));
         setProduct(data);
+        setDraft({
+          title: data.title,
+          handle: data.handle,
+          vendor: data.vendor ?? "",
+          productType: data.productType ?? "",
+        });
+        setCollections(await getCollections());
       } catch (err) {
-        setError("Failed to load product details.");
+        setError(errorMessage(err));
         console.error(err);
       } finally {
         setLoading(false);
@@ -41,12 +64,61 @@ export default function ProductDetail() {
     fetchProduct();
   }, [id]);
 
-  const handleSave = () => {
-    // TODO: Implement save when backend is ready
-    toast({
-      title: "Not implemented",
-      description: "Product update will be available when the backend is ready.",
+  const reload = async () => {
+    const data = await getProductById(Number(id));
+    setProduct(data);
+    setDraft({
+      title: data.title,
+      handle: data.handle,
+      vendor: data.vendor ?? "",
+      productType: data.productType ?? "",
     });
+  };
+  const handleSave = async () => {
+    if (!product || !draft.title.trim() || !draft.handle.trim()) {
+      toast({ title: "Title and handle are required" });
+      return;
+    }
+    const values = {
+      title: draft.title.trim(),
+      handle: draft.handle.trim(),
+      vendor: draft.vendor.trim() || null,
+      productType: draft.productType.trim() || null,
+    };
+    const payload = Object.fromEntries(
+      Object.entries(values).filter(
+        ([key, value]) => value !== (product[key as keyof Product] ?? null),
+      ),
+    );
+    setSaving(true);
+    try {
+      if (Object.keys(payload).length) await updateProduct(product.id, payload);
+      await reload();
+      toast({ title: "Saved", description: "Product saved successfully." });
+    } catch (error) {
+      toast({
+        title: "Save failed",
+        description: errorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+  const onUpdate = async (productId: number, payload: ProductUpdatePayload) => {
+    try {
+      await saveProductChanges(
+        productId,
+        payload,
+        product?.collections?.map((c) => c.id) ?? [],
+      );
+    } finally {
+      try {
+        await reload();
+      } catch {
+        /* Preserve the original write error; the operator can reload. */
+      }
+    }
   };
 
   if (loading) {
@@ -67,7 +139,10 @@ export default function ProductDetail() {
   if (error || !product) {
     return (
       <div className="animate-fade-in">
-        <Link to="/admin/products" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4">
+        <Link
+          to="/admin/products"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to products
         </Link>
@@ -82,20 +157,41 @@ export default function ProductDetail() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link to="/admin/products" className="text-muted-foreground hover:text-foreground">
+          <Link
+            to="/admin/products"
+            className="text-muted-foreground hover:text-foreground"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-display font-bold tracking-tight">{product.title}</h1>
+            <h1 className="text-2xl font-display font-bold tracking-tight">
+              {product.title}
+            </h1>
             <p className="text-muted-foreground">Product ID: {product.id}</p>
           </div>
         </div>
-        <Button onClick={handleSave} className="gap-2">
-          <Save className="h-4 w-4" />
-          Save Changes
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setDialogOpen(true)}>
+            Edit product
+          </Button>
+          <Button disabled={saving} onClick={handleSave} className="gap-2">
+            <Save className="h-4 w-4" />
+            {saving ? "Saving…" : "Save Changes"}
+          </Button>
+        </div>
       </div>
 
+      <ProductFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        mode="edit"
+        product={product}
+        collections={collections}
+        onCreate={async () => {
+          throw new Error("Creation is unavailable in this view");
+        }}
+        onUpdate={onUpdate}
+      />
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
@@ -108,21 +204,45 @@ export default function ProductDetail() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="title">Title</Label>
-                  <Input id="title" defaultValue={product.title} />
+                  <Input
+                    id="title"
+                    value={draft.title}
+                    onChange={(e) =>
+                      setDraft({ ...draft, title: e.target.value })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="vendor">Vendor</Label>
-                  <Input id="vendor" defaultValue={product.vendor || ""} />
+                  <Input
+                    id="vendor"
+                    value={draft.vendor}
+                    onChange={(e) =>
+                      setDraft({ ...draft, vendor: e.target.value })
+                    }
+                  />
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="handle">Handle</Label>
-                  <Input id="handle" defaultValue={product.handle} />
+                  <Input
+                    id="handle"
+                    value={draft.handle}
+                    onChange={(e) =>
+                      setDraft({ ...draft, handle: e.target.value })
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="productType">Product Type</Label>
-                  <Input id="productType" defaultValue={product.productType || ""} />
+                  <Input
+                    id="productType"
+                    value={draft.productType}
+                    onChange={(e) =>
+                      setDraft({ ...draft, productType: e.target.value })
+                    }
+                  />
                 </div>
               </div>
               <div className="space-y-2">
@@ -135,7 +255,9 @@ export default function ProductDetail() {
                       </Badge>
                     ))
                   ) : (
-                    <span className="text-muted-foreground text-sm">No tags</span>
+                    <span className="text-muted-foreground text-sm">
+                      No tags
+                    </span>
                   )}
                 </div>
               </div>
@@ -156,7 +278,7 @@ export default function ProductDetail() {
                       <TableHead>Title</TableHead>
                       <TableHead>Price</TableHead>
                       <TableHead>Compare At</TableHead>
-                      <TableHead>Inventory</TableHead>
+                      <TableHead>Physical / Reserved / Available</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -166,12 +288,20 @@ export default function ProductDetail() {
                           {variant.sku || "—"}
                         </TableCell>
                         <TableCell>{variant.title}</TableCell>
-                        <TableCell>${variant.price}</TableCell>
+                        <TableCell>{formatEUR(variant.price)}</TableCell>
                         <TableCell className="text-muted-foreground">
-                          {variant.compareAtPrice ? `$${variant.compareAtPrice}` : "—"}
+                          {variant.compareAtPrice
+                            ? formatEUR(variant.compareAtPrice)
+                            : "—"}
                         </TableCell>
                         <TableCell>
-                          {variant.inventoryQuantity ?? "—"}
+                          {variant.inventoryQuantity ?? "Unavailable"} /{" "}
+                          {variant.reservedQuantity ?? 0} /{" "}
+                          {Math.max(
+                            0,
+                            (variant.inventoryQuantity ?? 0) -
+                              (variant.reservedQuantity ?? 0),
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -197,7 +327,9 @@ export default function ProductDetail() {
                     </Badge>
                   ))
                 ) : (
-                  <span className="text-muted-foreground text-sm">Not in any collection</span>
+                  <span className="text-muted-foreground text-sm">
+                    Not in any collection
+                  </span>
                 )}
               </div>
             </CardContent>

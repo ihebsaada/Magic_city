@@ -13,5 +13,5 @@ export async function updateAdminOrder(
   id: string,
   payload: { status?: string; paymentStatus?: string },
 ) {
-  return apiPatch(`/admin/orders/${id}`, payload);
+  return apiPatch<{ ok: true; id: string }>(`/admin/orders/${id}`, payload);
 }

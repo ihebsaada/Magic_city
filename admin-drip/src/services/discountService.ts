@@ -16,7 +16,7 @@ export type CreateDiscountPayload = {
 };
 
 export async function createAdminDiscount(payload: CreateDiscountPayload) {
-  return apiPost("/admin/discounts", payload);
+  return apiPost<{ id: string }>("/admin/discounts", payload);
 }
 
 export type UpdateDiscountPayload = Partial<CreateDiscountPayload>;
@@ -25,9 +25,9 @@ export async function updateAdminDiscount(
   id: string,
   payload: UpdateDiscountPayload,
 ) {
-  return apiPatch(`/admin/discounts/${id}`, payload);
+  return apiPatch<{ ok: true }>(`/admin/discounts/${id}`, payload);
 }
 
 export async function deleteAdminDiscount(id: string) {
-  return apiDelete(`/admin/discounts/${id}`);
+  return apiDelete<{ ok: true }>(`/admin/discounts/${id}`);
 }

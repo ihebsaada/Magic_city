@@ -1,17 +1,18 @@
 export interface ProductImage {
   id: number;
   src: string;
-  alt?: string;
+  alt?: string | null;
   position?: number;
 }
 
 export interface ProductVariant {
   id: number;
-  title: string;
-  sku: string;
-  price: string;
-  compareAtPrice?: string;
-  inventoryQuantity?: number;
+  title: string | null;
+  sku: string | null;
+  price: string | null;
+  compareAtPrice?: string | null;
+  inventoryQuantity?: number | null;
+  reservedQuantity?: number;
   option1?: string;
   option2?: string;
   option3?: string;
@@ -21,11 +22,14 @@ export interface Product {
   id: number;
   handle: string;
   title: string;
-  vendor: string;
-  productType?: string;
+  vendor: string | null;
+  productType?: string | null;
+  option1Name?: string | null;
+  option2Name?: string | null;
+  option3Name?: string | null;
   tags?: string[];
   status?: "active" | "draft" | "archived";
-  descriptionHtml?: string;
+  descriptionHtml?: string | null;
   images: ProductImage[];
   variants: ProductVariant[];
   createdAt?: string;
@@ -38,7 +42,7 @@ export interface Collection {
   handle: string;
   title: string;
   productsCount: number;
-  description?: string;
+  description?: string | null;
 }
 
 export interface CollectionWithProducts {
@@ -46,27 +50,15 @@ export interface CollectionWithProducts {
   products: Product[];
 }
 
-// export interface Order {
-//   id: string;
-//   orderNumber: string;
-//   customer: {
-//     name: string;
-//     email: string;
-//   };
-//   total: string;
-//   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
-//   paymentStatus: "pending" | "paid" | "refunded";
-//   createdAt: string;
-// }
-
 export interface Discount {
   id: string;
   code: string;
   type: "percentage" | "fixed";
   value: number;
   usageCount: number;
-  usageLimit?: number;
-  expiresAt?: string;
+  reservedUses?: number;
+  usageLimit?: number | null;
+  expiresAt?: string | null;
   active: boolean;
 }
 // ✅ Liste (ok)
@@ -96,6 +88,9 @@ export interface AdminOrderItem {
 }
 
 export interface AdminOrderDetail {
+  canEdit?: boolean;
+  readOnlyReason?: { code: string; message: string } | null;
+  allowedStatuses?: string[];
   id: string;
   orderNumber: string; // "#29"
   customer: { name: string; email: string };

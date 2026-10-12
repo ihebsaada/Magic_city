@@ -1,5 +1,20 @@
-import { apiDelete, apiGet, apiPatch, apiPost } from "./api";
-import type { Product } from "@/types";
+import {
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  apiPut,
+  errorMessage,
+} from "./api";
+import type { Product, ProductVariant, Collection } from "@/types";
+
+export type ProductMutationResult = Omit<Product, "collections"> & {
+  collections?: {
+    productId: number;
+    collectionId: number;
+    collection: Omit<Collection, "productsCount">;
+  }[];
+};
 
 export type ProductCreatePayload = {
   title: string;
@@ -25,6 +40,10 @@ export type ProductCreatePayload = {
 };
 
 export type ProductUpdatePayload = {
+  option1Name?: string | null;
+  option2Name?: string | null;
+  option3Name?: string | null;
+  variantUpdate?: DefaultVariantUpdatePayload;
   title?: string;
   handle?: string;
   vendor?: string | null;
@@ -49,17 +68,17 @@ export async function getProductById(id: number): Promise<Product> {
 
 export async function createProduct(
   payload: ProductCreatePayload,
-): Promise<Product> {
+): Promise<ProductMutationResult> {
   // backend: POST /api/admin/products
-  return apiPost<Product>("/admin/products", payload);
+  return apiPost<ProductMutationResult>("/admin/products", payload);
 }
 
 export async function updateProduct(
   id: number,
   payload: ProductUpdatePayload,
-): Promise<Product> {
+): Promise<ProductMutationResult> {
   // backend: PATCH /api/admin/products/:id
-  return apiPatch<Product>(`/admin/products/${id}`, payload);
+  return apiPatch<ProductMutationResult>(`/admin/products/${id}`, payload);
 }
 
 export async function deleteProduct(id: number): Promise<void> {
@@ -67,6 +86,7 @@ export async function deleteProduct(id: number): Promise<void> {
   return apiDelete(`/admin/products/${id}`);
 }
 export type DefaultVariantUpdatePayload = {
+  variantId?: number;
   price?: number;
   compareAtPrice?: number | null;
   inventoryQuantity?: number | null;
@@ -78,5 +98,36 @@ export async function updateDefaultVariant(
   payload: DefaultVariantUpdatePayload,
 ) {
   // backend: PATCH /api/admin/products/:id/default-variant
-  return apiPatch(`/admin/products/${productId}/default-variant`, payload);
+  return apiPatch<ProductVariant>(
+    `/admin/products/${productId}/default-variant`,
+    payload,
+  );
+}
+
+export async function saveProductChanges(
+  id: number,
+  payload: ProductUpdatePayload,
+  previousCollectionIds: number[],
+) {
+  const { collectionIds, ...fields } = payload;
+  const changed =
+    collectionIds !== undefined &&
+    JSON.stringify([...collectionIds].sort((a, b) => a - b)) !==
+      JSON.stringify([...previousCollectionIds].sort((a, b) => a - b));
+  if (Object.keys(fields).length) await updateProduct(id, fields);
+  if (changed) {
+    try {
+      await apiPut<{ ok: true }>(`/admin/products/${id}/collections`, {
+        collectionIds,
+      });
+    } catch (error) {
+      throw new Error(
+        (Object.keys(fields).length
+          ? "Product and selected variant saved, but collections were not saved. "
+          : "Collections were not saved. ") +
+          errorMessage(error) +
+          " Reload before retrying.",
+      );
+    }
+  }
 }

@@ -1,11 +1,16 @@
 // src/services/authService.ts
-import { apiPost } from "./api";
+import { request } from "./api";
 
 export type AdminUser = { id: string; email: string };
 
 export async function adminLogin(email: string, password: string) {
-  return apiPost<{ token: string; user: AdminUser }>("/admin/auth/login", {
-    email,
-    password,
-  });
+  return request<{ token: string; user: AdminUser }>(
+    "/admin/auth/login",
+    "POST",
+    {
+      email,
+      password,
+    },
+    false,
+  );
 }

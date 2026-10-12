@@ -1,3 +1,5 @@
+import { productPrice } from "@/lib/adminValues";
+import { errorMessage } from "@/services/api";
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getCollectionProducts } from "@/services/collectionService";
@@ -28,7 +30,7 @@ export default function CollectionDetail() {
         const result = await getCollectionProducts(handle);
         setData(result);
       } catch (err) {
-        setError("Failed to load collection details.");
+        setError(errorMessage(err));
         console.error(err);
       } finally {
         setLoading(false);
@@ -38,8 +40,7 @@ export default function CollectionDetail() {
   }, [handle]);
 
   const getMainPrice = (variants: { price: string }[]) => {
-    if (variants?.[0]?.price) return `$${variants[0].price}`;
-    return "—";
+    return productPrice(variants ?? []);
   };
 
   if (loading) {
@@ -55,7 +56,10 @@ export default function CollectionDetail() {
   if (error || !data) {
     return (
       <div className="animate-fade-in">
-        <Link to="/admin/collections" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4">
+        <Link
+          to="/admin/collections"
+          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4"
+        >
           <ArrowLeft className="h-4 w-4" />
           Back to collections
         </Link>
@@ -71,12 +75,19 @@ export default function CollectionDetail() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
-        <Link to="/admin/collections" className="text-muted-foreground hover:text-foreground">
+        <Link
+          to="/admin/collections"
+          className="text-muted-foreground hover:text-foreground"
+        >
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-display font-bold tracking-tight">{collection.title}</h1>
-          <p className="text-muted-foreground font-mono text-sm">{collection.handle}</p>
+          <h1 className="text-2xl font-display font-bold tracking-tight">
+            {collection.title}
+          </h1>
+          <p className="text-muted-foreground font-mono text-sm">
+            {collection.handle}
+          </p>
         </div>
       </div>
 
@@ -117,11 +128,15 @@ export default function CollectionDetail() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">{product.title}</TableCell>
+                    <TableCell className="font-medium">
+                      {product.title}
+                    </TableCell>
                     <TableCell className="hidden sm:table-cell text-muted-foreground">
                       {product.vendor || "—"}
                     </TableCell>
-                    <TableCell className="font-medium">{getMainPrice(product.variants)}</TableCell>
+                    <TableCell className="font-medium">
+                      {getMainPrice(product.variants)}
+                    </TableCell>
                     <TableCell>
                       <Button variant="ghost" size="icon" asChild>
                         <Link to={`/admin/products/${product.id}`}>

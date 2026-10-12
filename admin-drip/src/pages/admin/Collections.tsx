@@ -40,10 +40,11 @@ export default function Collections() {
     try {
       const data = await getCollections();
       setCollections(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Error",
-        description: err?.message ?? "Failed to load collections",
+        description:
+          err instanceof Error ? err.message : "Failed to load collections",
       });
     } finally {
       setLoading(false);
@@ -80,8 +81,11 @@ export default function Collections() {
       await deleteCollection(c.id);
       toast({ title: "Deleted", description: "Collection deleted." });
       await refresh();
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message ?? "Delete failed" });
+    } catch (e: unknown) {
+      toast({
+        title: "Error",
+        description: e instanceof Error ? e.message : "Delete failed",
+      });
     }
   };
 
@@ -164,7 +168,9 @@ export default function Collections() {
                   <TableCell className="text-right">
                     <div className="inline-flex items-center gap-1">
                       <Button variant="ghost" size="icon" asChild>
-                        <Link to={`/admin/collections/${c.handle}`}>
+                        <Link
+                          to={`/admin/collections/${encodeURIComponent(c.handle)}`}
+                        >
                           <Eye className="h-4 w-4" />
                         </Link>
                       </Button>

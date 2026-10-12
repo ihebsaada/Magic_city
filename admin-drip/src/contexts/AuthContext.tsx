@@ -2,79 +2,90 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useCallback,
   type ReactNode,
 } from "react";
-import { adminLogin } from "@/services/authService";
-
-export interface AdminUser {
-  id: string;
-  email: string;
+import { adminLogin, type AdminUser } from "@/services/authService";
+import { clearSession, tokenExpiry, SESSION_EVENT } from "@/services/api";
+type Session = { token: string; user: AdminUser };
+function storedSession(): Session | null {
+  try {
+    const token = localStorage.getItem("admin_token");
+    const user = JSON.parse(localStorage.getItem("admin_user") || "null");
+    if (
+      token &&
+      (tokenExpiry(token) ?? 0) > Date.now() &&
+      typeof user?.id === "string" &&
+      typeof user?.email === "string"
+    )
+      return { token, user };
+  } catch {
+    /* Corrupt storage must never crash the application. */
+  }
+  localStorage.removeItem("admin_token");
+  localStorage.removeItem("admin_user");
+  return null;
 }
-
-interface AuthContextType {
+const AuthContext = createContext<{
   user: AdminUser | null;
   token: string | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
+} | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AdminUser | null>(() => {
-    const raw = localStorage.getItem("admin_user");
-    return raw ? (JSON.parse(raw) as AdminUser) : null;
-  });
-
-  const [token, setToken] = useState<string | null>(() =>
-    localStorage.getItem("admin_token"),
-  );
-
+  const [session, setSession] = useState(storedSession);
+  useEffect(() => {
+    const sync = () => setSession(storedSession());
+    window.addEventListener(SESSION_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(SESSION_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
+  useEffect(() => {
+    if (!session) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const check = () => {
+      const remaining = (tokenExpiry(session.token) ?? 0) - Date.now();
+      if (remaining <= 0) clearSession();
+      else timer = setTimeout(check, Math.min(remaining, 2147483647));
+    };
+    check();
+    return () => clearTimeout(timer);
+  }, [session]);
   const login = useCallback(async (email: string, password: string) => {
-    try {
-      const res = await adminLogin(email, password);
-
-      setUser(res.user);
-      setToken(res.token);
-
-      localStorage.setItem("admin_user", JSON.stringify(res.user));
-      localStorage.setItem("admin_token", res.token);
-
-      return true;
-    } catch (err) {
-      console.error("Login failed", err);
-      return false;
-    }
+    const result = await adminLogin(email.trim(), password);
+    if (
+      !result.token ||
+      (tokenExpiry(result.token) ?? 0) <= Date.now() ||
+      typeof result.user?.id !== "string" ||
+      typeof result.user?.email !== "string"
+    )
+      throw new Error("The server returned an invalid session.");
+    localStorage.setItem("admin_token", result.token);
+    localStorage.setItem("admin_user", JSON.stringify(result.user));
+    setSession(result);
+    return true;
   }, []);
-
-  const logout = useCallback(() => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem("admin_user");
-    localStorage.removeItem("admin_token");
-  }, []);
-
   return (
     <AuthContext.Provider
       value={{
-        user,
-        token,
-        isAuthenticated: !!token,
+        user: session?.user ?? null,
+        token: session?.token ?? null,
+        isAuthenticated: !!session,
         login,
-        logout,
+        logout: clearSession,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 }
-
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
-  return context;
+  const value = useContext(AuthContext);
+  if (!value) throw new Error("AuthProvider is required");
+  return value;
 }

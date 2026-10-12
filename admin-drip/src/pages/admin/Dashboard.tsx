@@ -1,5 +1,13 @@
+import { productPrice } from "@/lib/adminValues";
+import { errorMessage } from "@/services/api";
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Package, FolderOpen, TrendingUp, DollarSign } from "lucide-react";
 import { getProducts } from "@/services/productService";
@@ -22,7 +30,7 @@ export default function Dashboard() {
         setProducts(productsData);
         setCollections(collectionsData);
       } catch (err) {
-        setError("Failed to load dashboard data. Please check your API connection.");
+        setError(errorMessage(err));
         console.error(err);
       } finally {
         setLoading(false);
@@ -35,13 +43,16 @@ export default function Dashboard() {
     .sort((a, b) => b.productsCount - a.productsCount)
     .slice(0, 3);
 
-  const recentProducts = products.slice(0, 5);
+  const recentProducts = [...products]
+    .sort(
+      (a, b) =>
+        Date.parse(b.createdAt || "") - Date.parse(a.createdAt || "") ||
+        b.id - a.id,
+    )
+    .slice(0, 5);
 
   const getMainPrice = (product: Product) => {
-    if (product.variants?.[0]?.price) {
-      return `$${product.variants[0].price}`;
-    }
-    return "N/A";
+    return productPrice(product.variants ?? []);
   };
 
   if (error) {
@@ -57,7 +68,9 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-display font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-display font-bold tracking-tight">
+          Dashboard
+        </h1>
         <p className="text-muted-foreground">Overview of your store</p>
       </div>
 
@@ -65,7 +78,9 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Total Products
+            </CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -129,7 +144,9 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : topCollections.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No collections found</p>
+              <p className="text-muted-foreground text-sm">
+                No collections found
+              </p>
             ) : (
               <div className="space-y-3">
                 {topCollections.map((collection, index) => (
@@ -187,10 +204,16 @@ export default function Dashboard() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{product.title}</p>
-                      <p className="text-xs text-muted-foreground">{product.vendor}</p>
+                      <p className="font-medium text-sm truncate">
+                        {product.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {product.vendor}
+                      </p>
                     </div>
-                    <span className="text-sm font-medium">{getMainPrice(product)}</span>
+                    <span className="text-sm font-medium">
+                      {getMainPrice(product)}
+                    </span>
                   </div>
                 ))}
               </div>

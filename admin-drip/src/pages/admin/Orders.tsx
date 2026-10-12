@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { errorMessage } from "@/services/api";
+import { useEffect, useState, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -42,7 +43,6 @@ const STATUS = [
   "delivered",
   "cancelled",
 ] as const;
-const PAY = ["pending", "paid", "refunded"] as const;
 
 const statusColors: Record<string, string> = {
   pending: "bg-warning/10 text-warning border-0",
@@ -58,7 +58,10 @@ const paymentColors: Record<string, string> = {
   refunded: "bg-muted text-muted-foreground border-0",
 };
 
-function formatMoney(total: any, currency?: string) {
+function formatMoney(
+  total: string | number | null | undefined,
+  currency?: string,
+) {
   // total can be "299.00" or 299 or "$299.00" (legacy mock)
   const num =
     typeof total === "number"
@@ -77,17 +80,31 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const detailRequest = useRef(0);
   const [open, setOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminOrderDetail | null>(null);
+  const [original, setOriginal] = useState<AdminOrderDetail | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   async function openOrder(id: string) {
+    const request = ++detailRequest.current;
     setSelectedId(id);
     setOpen(true);
     setDetail(null);
-    const d = await getAdminOrderById(id);
-    setDetail(d);
+    setDetailError(null);
+    setOriginal(null);
+    try {
+      const d = await getAdminOrderById(id);
+      if (request === detailRequest.current) {
+        setDetail(d);
+        setOriginal(d);
+      }
+    } catch (error) {
+      if (request === detailRequest.current)
+        setDetailError(errorMessage(error));
+    }
   }
 
   useEffect(() => {
@@ -98,7 +115,7 @@ export default function Orders() {
         setOrders(data);
       } catch (e) {
         console.error(e);
-        setError("Failed to load orders. Check API URL / backend.");
+        setError(errorMessage(e));
       } finally {
         setLoading(false);
       }
@@ -174,10 +191,7 @@ export default function Orders() {
                       </TableCell>
 
                       <TableCell className="font-medium">
-                        {formatMoney(
-                          (order as any).total,
-                          (order as any).currency,
-                        )}
+                        {formatMoney(order.total, order.currency)}
                       </TableCell>
 
                       <TableCell className="hidden md:table-cell">
@@ -226,7 +240,9 @@ export default function Orders() {
           </SheetHeader>
 
           {!detail ? (
-            <div className="py-6 text-muted-foreground">Loading…</div>
+            <div className="py-6 text-muted-foreground">
+              {detailError || "Loading…"}
+            </div>
           ) : (
             <div className="space-y-6 py-4">
               {/* Customer */}
@@ -330,6 +346,12 @@ export default function Orders() {
               {/* Update controls */}
               <div className="rounded-lg border p-4 space-y-3">
                 <div className="font-semibold">Update</div>
+                {detail.canEdit !== true && (
+                  <p role="status" className="text-sm text-muted-foreground">
+                    {detail.readOnlyReason?.message ||
+                      "This order is read-only. Editing capabilities are unavailable."}
+                  </p>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -337,20 +359,23 @@ export default function Orders() {
                       Status
                     </div>
                     <Select
+                      disabled={detail.canEdit !== true || saving}
                       value={detail.status}
                       onValueChange={(v) =>
-                        setDetail({ ...detail, status: v as any })
+                        setDetail({ ...detail, status: v as Order["status"] })
                       }
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {STATUS.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
+                        {(detail.allowedStatuses ?? [detail.status]).map(
+                          (s) => (
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
+                          ),
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -359,50 +384,46 @@ export default function Orders() {
                     <div className="text-sm text-muted-foreground mb-1">
                       Payment
                     </div>
-                    <Select
-                      value={detail.paymentStatus}
-                      onValueChange={(v) =>
-                        setDetail({ ...detail, paymentStatus: v as any })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PAY.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {p}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <p>{detail.paymentStatus}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Payment status is read-only. Settlement is handled by the
+                      authorized payment workflow.
+                    </p>
                   </div>
                 </div>
 
                 <Button
-                  disabled={saving}
+                  disabled={
+                    saving ||
+                    detail.canEdit !== true ||
+                    detail.status === original?.status
+                  }
                   onClick={async () => {
-                    if (!selectedId || !detail) return;
+                    if (
+                      !selectedId ||
+                      !detail ||
+                      detail.canEdit !== true ||
+                      detail.status === original?.status
+                    )
+                      return;
                     setSaving(true);
-
-                    console.log("PATCH order", selectedId, {
-                      status: detail.status.toUpperCase(),
-                      paymentStatus: detail.paymentStatus.toUpperCase(),
-                    });
-
                     try {
-                      const r = await updateAdminOrder(selectedId, {
+                      await updateAdminOrder(selectedId, {
                         status: detail.status.toUpperCase(),
-                        paymentStatus: detail.paymentStatus.toUpperCase(),
                       });
-
-                      console.log("PATCH success", r);
-
-                      const data = await getAdminOrders();
-                      setOrders(data);
-                    } catch (e) {
-                      console.error("PATCH failed", e);
-                      alert("Update failed. Check console/network.");
+                      const updated = await getAdminOrderById(selectedId);
+                      setDetail(updated);
+                      setOriginal(updated);
+                      setOrders(await getAdminOrders());
+                    } catch (error) {
+                      alert(errorMessage(error));
+                      try {
+                        const current = await getAdminOrderById(selectedId);
+                        setDetail(current);
+                        setOriginal(current);
+                      } catch {
+                        /* Keep the error visible and let the operator reopen the order. */
+                      }
                     } finally {
                       setSaving(false);
                     }

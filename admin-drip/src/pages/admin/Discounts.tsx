@@ -1,3 +1,5 @@
+import { validMoney, toLocalDateTime } from "@/lib/adminValues";
+import { errorMessage } from "@/services/api";
 // src/pages/admin/Discounts.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -60,14 +62,15 @@ const emptyForm = (): FormState => ({
 });
 
 function formatUsage(d: Discount) {
-  if (d.usageLimit == null) return `${d.usageCount}`;
-  return `${d.usageCount} / ${d.usageLimit}`;
+  if (d.usageLimit == null)
+    return `${d.usageCount} used + ${d.reservedUses ?? 0} reserved`;
+  return `${d.usageCount} used + ${d.reservedUses ?? 0} reserved / ${d.usageLimit}`;
 }
 
 function formatExpires(expiresAt?: string | null) {
   if (!expiresAt) return "No expiry";
   try {
-    return new Date(expiresAt).toLocaleDateString();
+    return new Date(expiresAt).toLocaleString();
   } catch {
     return "—";
   }
@@ -87,6 +90,7 @@ export default function Discounts() {
   const [mode, setMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
+  const [original, setOriginal] = useState<Discount | null>(null);
   const [saving, setSaving] = useState(false);
 
   async function refresh() {
@@ -97,7 +101,7 @@ export default function Discounts() {
       setItems(data);
     } catch (e) {
       console.error(e);
-      setError("Failed to load discounts. Check API / auth.");
+      setError(errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -110,6 +114,7 @@ export default function Discounts() {
   const sorted = useMemo(() => items, [items]);
 
   function openCreate() {
+    setOriginal(null);
     setMode("create");
     setEditingId(null);
     setForm(emptyForm());
@@ -117,6 +122,7 @@ export default function Discounts() {
   }
 
   function openEdit(d: Discount) {
+    setOriginal(d);
     setMode("edit");
     setEditingId(d.id);
     setForm({
@@ -124,7 +130,7 @@ export default function Discounts() {
       type: d.type,
       value: String(d.value),
       usageLimit: d.usageLimit == null ? "" : String(d.usageLimit),
-      expiresAt: d.expiresAt ? d.expiresAt.slice(0, 10) : "", // YYYY-MM-DD
+      expiresAt: d.expiresAt ? toLocalDateTime(d.expiresAt) : "", // YYYY-MM-DD
       active: d.active,
     });
     setOpen(true);
@@ -136,7 +142,10 @@ export default function Discounts() {
       alert("Code is required");
       return;
     }
-    if (!Number.isFinite(valueNum) || valueNum <= 0) {
+    if (
+      !validMoney(valueNum) ||
+      (form.type === "percentage" && valueNum > 100)
+    ) {
       alert("Value must be a positive number");
       return;
     }
@@ -156,7 +165,9 @@ export default function Discounts() {
 
     if (
       payload.usageLimit != null &&
-      (!Number.isFinite(payload.usageLimit) || payload.usageLimit < 0)
+      (!Number.isInteger(payload.usageLimit) ||
+        payload.usageLimit < 0 ||
+        payload.usageLimit > 2147483647)
     ) {
       alert("Usage limit must be a valid number");
       return;
@@ -168,19 +179,26 @@ export default function Discounts() {
         await createAdminDiscount(payload);
       } else if (editingId) {
         // for update, code isn't needed (optional). keep it stable.
-        await updateAdminDiscount(editingId, {
-          type: payload.type,
-          value: payload.value,
-          usageLimit: payload.usageLimit,
-          expiresAt: payload.expiresAt,
-          active: payload.active,
-        });
+        const changed = Object.fromEntries(
+          Object.entries(payload).filter(
+            ([key, value]) =>
+              key !== "code" &&
+              (key === "expiresAt"
+                ? form.expiresAt !==
+                  (original?.expiresAt
+                    ? toLocalDateTime(original.expiresAt)
+                    : "")
+                : value !== (original?.[key as keyof Discount] ?? null)),
+          ),
+        );
+        if (Object.keys(changed).length)
+          await updateAdminDiscount(editingId, changed);
       }
       setOpen(false);
       await refresh();
     } catch (e) {
       console.error(e);
-      alert("Save failed (check backend logs / auth).");
+      alert(errorMessage(e));
     } finally {
       setSaving(false);
     }
@@ -195,7 +213,7 @@ export default function Discounts() {
       await refresh();
     } catch (e) {
       console.error(e);
-      alert("Delete failed.");
+      alert(errorMessage(e));
     }
   }
 
@@ -207,7 +225,7 @@ export default function Discounts() {
       );
     } catch (e) {
       console.error(e);
-      alert("Update failed.");
+      alert(errorMessage(e));
     }
   }
 
@@ -322,12 +340,13 @@ export default function Discounts() {
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Code</div>
                 <Input
+                  disabled={mode === "edit"}
+                  aria-label="Discount code"
                   value={form.code}
                   onChange={(e) =>
                     setForm((s) => ({ ...s, code: e.target.value }))
                   }
                   placeholder="MAGIC10"
-                  disabled={mode === "edit"} // keep stable
                 />
               </div>
 
@@ -336,7 +355,10 @@ export default function Discounts() {
                 <Select
                   value={form.type}
                   onValueChange={(v) =>
-                    setForm((s) => ({ ...s, type: v as any }))
+                    setForm((s) => ({
+                      ...s,
+                      type: v as "percentage" | "fixed",
+                    }))
                   }
                 >
                   <SelectTrigger>
@@ -354,6 +376,7 @@ export default function Discounts() {
               <div>
                 <div className="text-sm text-muted-foreground mb-1">Value</div>
                 <Input
+                  aria-label="Discount value"
                   value={form.value}
                   onChange={(e) =>
                     setForm((s) => ({ ...s, value: e.target.value }))
@@ -367,6 +390,7 @@ export default function Discounts() {
                   Usage limit
                 </div>
                 <Input
+                  aria-label="Usage limit"
                   value={form.usageLimit}
                   onChange={(e) =>
                     setForm((s) => ({ ...s, usageLimit: e.target.value }))
@@ -382,7 +406,9 @@ export default function Discounts() {
                   Expires at
                 </div>
                 <Input
-                  type="date"
+                  type="datetime-local"
+                  step="0.001"
+                  aria-label="Expires at (local time)"
                   value={form.expiresAt}
                   onChange={(e) =>
                     setForm((s) => ({ ...s, expiresAt: e.target.value }))
